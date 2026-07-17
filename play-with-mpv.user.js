@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.1
+// @version      1.1.2
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -111,9 +111,9 @@
       media.audio ? `--audio-file="${media.audio}"` : "",
       media.subtitle ? `--sub-file="${media.subtitle}"` : "",
       media.title ? `--force-media-title="${media.title}"` : "",
-      media.origin ? `--http-header-fields="origin: ${media.origin}"` : "",
-      media.referer ? `--http-header-fields="referer: ${media.referer}"` : "",
-      media.cookie ? `--http-header-fields="cookie: ${media.cookie}"` : "",
+      media.origin ? `--http-header-fields="Origin: ${media.origin}"` : "",
+      media.referrer ? `--http-header-fields="Referer: ${media.referrer}"` : "",
+      media.cookie ? `--http-header-fields="Cookie: ${media.cookie}"` : "",
       startTimeArg,
       proxyArg,
       qualityArg,
@@ -570,9 +570,11 @@
     let media = {
       video: null,
       title: title,
-      origin: document.origin,
-      referer: document.referer,
+      origin: window.location.origin,
+      referrer: document.referrer,
       cookie: document.cookie,
+      time: 0,
+      audio: null,
       subtitle: null,
     };
 

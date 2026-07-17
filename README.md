@@ -4,6 +4,7 @@
 - 支持大部分视频网站，部分加密视频
 - [yt-dlp 支持的网站](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
 - 本工具通过嗅探资源方式获取视频原始链接 + `yt-dlp` 配合，能够覆盖大部分视频网站
+- [>>常见相关问题](https://github.com/akFace/play-with-mpv#%E7%9B%B8%E5%85%B3%E9%97%AE%E9%A2%98)
 
 ## 🧱 安装
 
@@ -19,7 +20,7 @@
 
 - 下载：[URL Scheme Handler](https://github.com/LuckyPuppy514/url-scheme-handler)
 
-- 确保已经安装：[yt-dlp](https://github.com/yt-dlp/yt-dlp/releases)，进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即播放器安装目录
+- 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录
 
 - 打开 URL Scheme Handler 并设置如图：注意 MPV 为大写
   ![image](https://github.com/akFace/picx-images-hosting/raw/master/Tools/Snipaste_2026-07-16_17-53-00.99u1oq1914.webp)
