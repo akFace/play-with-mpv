@@ -226,10 +226,26 @@
 
   interceptedVideo();
 
+  // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
+  function initSetIframe() {
+    setTimeout(() => {
+      const iframes = document.querySelectorAll("iframe");
+      if (iframes) {
+        iframes.forEach((frame) => {
+          if (frame.sandbox) {
+            frame.sandbox =
+              "allow-popups allow-scripts allow-same-origin allow-top-navigation allow-forms";
+          }
+        });
+      }
+    }, 1500);
+  }
+
   // ==========================================
   // UI 渲染与样式美化
   // ==========================================
   function initUI() {
+    initSetIframe();
     if (document.getElementById("mpv-control-container")) return;
 
     const settings = getSettings();
