@@ -674,9 +674,37 @@
     );
   }
 
+  // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
+  function initWhenReady() {
+    // 1. 如果有 video 标签，直接显示
+    if (document.querySelector("video")) {
+      initUI();
+      return;
+    }
+    let sniffCheck = null;
+    // 2. 如果暂时没有 video，监听 DOM 变化
+    const domObserver = new MutationObserver((mutations, obs) => {
+      if (document.querySelector("video")) {
+        initUI();
+        obs.disconnect();
+        clearInterval(sniffCheck); // 停止下面的定时器
+      }
+    });
+    domObserver.observe(document.body, { childList: true, subtree: true });
+
+    // 3. 同时：如果网页没有 video，但拦截器嗅探到了流，也强制把按钮显示出来
+    sniffCheck = setInterval(() => {
+      if (interceptedVideoUrls.size > 0) {
+        initUI();
+        domObserver.disconnect(); // 停止 DOM 监听
+        clearInterval(sniffCheck); // 停止自己
+      }
+    }, 1000); // 1秒检查一次 Set 集合，开销极小
+  }
+  // 页面加载完成后再初始化 UI，避免与网页自身 JS 冲突
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initUI);
+    document.addEventListener("DOMContentLoaded", initWhenReady);
   } else {
-    initUI();
+    initWhenReady();
   }
 })();
