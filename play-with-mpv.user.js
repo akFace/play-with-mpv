@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.4
+// @version      1.1.5
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -245,7 +245,6 @@
   // UI 渲染与样式美化
   // ==========================================
   function initUI() {
-    initSetIframe();
     if (document.getElementById("mpv-control-container")) return;
 
     const settings = getSettings();
@@ -358,6 +357,7 @@
         opacity: 0;
         transform: translateY(15px) scale(0.95);
         box-sizing: border-box !important;
+        color: #333 !important;
       `;
 
     modal.innerHTML = `
@@ -376,11 +376,11 @@
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <label id="mpv-label-proxy" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;">
+            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055; color: #333;">
           </div>
           <input type="text" id="mpv-proxy-addr" style="
             width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; transition: border-color 0.2s; box-sizing: border-box;
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; transition: border-color 0.2s; box-sizing: border-box; color: #333;
           " />
         </div>
   
@@ -389,7 +389,7 @@
           <label id="mpv-label-quality" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
           <select id="mpv-quality-select" style="
             width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box;
+            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
           ">
             <option value="2160">4K Ultra HD (2160p)</option>
             <option value="1440">2K Quad HD (1440p)</option>
@@ -434,7 +434,7 @@
           <label id="mpv-label-lang" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
           <select id="mpv-lang-select" style="
             width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box;
+            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
           ">
             <option value="zh">简体中文</option>
             <option value="en">English</option>
@@ -676,6 +676,7 @@
 
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
   function initWhenReady() {
+    initSetIframe();
     // 1. 如果有 video 标签，直接显示
     if (document.querySelector("video")) {
       initUI();
