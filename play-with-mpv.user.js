@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.5
+// @version      1.1.6
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -61,7 +61,7 @@
   // 默认配置初始化
   const DEFAULT_SETTINGS = {
     proxyEnabled: false,
-    networkProxy: "",
+    networkProxy: "http://127.0.0.1:7897",
     quality: "2160",
     subEnabled: true,
     subTranslate: true,
@@ -93,10 +93,13 @@
   // 唤起 MPV 核心函数
   function openMpv(media) {
     const settings = getSettings();
-
     const proxyArg =
       settings.proxyEnabled && settings.networkProxy
         ? `--ytdl-raw-options="proxy=[${settings.networkProxy}]"`
+        : "";
+    const httpProxyArg =
+      settings.proxyEnabled && settings.networkProxy
+        ? `--http-proxy="${settings.networkProxy}"`
         : "";
 
     const qualityArg = settings.quality
@@ -113,9 +116,17 @@
       media.title ? `--force-media-title="${media.title}"` : "",
       media.origin ? `--http-header-fields="Origin: ${media.origin}"` : "",
       media.referrer ? `--http-header-fields="Referer: ${media.referrer}"` : "",
+      media.referrer
+        ? `--http-header-fields="referrer: ${media.referrer}"`
+        : "",
       media.cookie ? `--http-header-fields="Cookie: ${media.cookie}"` : "",
+      media.cookie ? `--cookies="${media.cookie}"` : "",
+      media.ua ? `--user-agent="${media.ua}"` : "",
+      media.referrer ? `--referrer="${media.referrer}"` : "",
+      media.origin ? `--origin="${media.origin}"` : "",
       startTimeArg,
       proxyArg,
+      httpProxyArg,
       qualityArg,
       `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
     ];
@@ -376,11 +387,11 @@
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <label id="mpv-label-proxy" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055; color: #333;">
+            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055; color: #333;display: block;">
           </div>
           <input type="text" id="mpv-proxy-addr" style="
             width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; transition: border-color 0.2s; box-sizing: border-box; color: #333;
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; transition: border-color 0.2s; box-sizing: border-box; color: #333; 
           " />
         </div>
   
@@ -403,7 +414,7 @@
         <div style="border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;">
+            <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;display: block;">
           </div>
           
           <div>
@@ -421,11 +432,11 @@
         <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label id="mpv-label-sub" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-sub-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;">
+            <input type="checkbox" id="mpv-sub-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;display: block;">
           </div>
           <div id="mpv-translate-wrap" style="display: flex; justify-content: space-between; align-items: center; padding-left: 10px; transition: opacity 0.2s;">
             <label id="mpv-label-translate" style="font-size: 12px; color: #666;"></label>
-            <input type="checkbox" id="mpv-translate-toggle" style="cursor: pointer; width: 34px; height: 18px; accent-color: #ff0055;">
+            <input type="checkbox" id="mpv-translate-toggle" style="cursor: pointer; width: 34px; height: 18px; accent-color: #ff0055;display: block;">
           </div>
         </div>
   
@@ -593,8 +604,10 @@
       video: null,
       title: title,
       origin: window.location.origin,
-      referrer: document.referrer,
+      referrer:
+        document.referrer || window.location.origin + window.location.pathname,
       cookie: document.cookie,
+      ua: navigator.userAgent,
       time: 0,
       audio: null,
       subtitle: null,
