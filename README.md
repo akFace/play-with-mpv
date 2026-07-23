@@ -27,7 +27,7 @@
 
 ### 相关问题
 
-- q: 为何 B 站无法加载最高画质？ a：由于`--cookies-from-browser`失效了（ [详情:issues](https://github.com/yt-dlp/yt-dlp/issues/7271)），解决办法：[查看](https://github.com/yt-dlp/yt-dlp/issues/7271#issuecomment-1584404779)
+- q: 为何 B 站无法加载最高画质？ a：由于`--cookies-from-browser`失效了（ [详情:issues](https://github.com/yt-dlp/yt-dlp/issues/7271)），解决办法：[方法 ① 推荐](https://github.com/akFace/play-with-mpv/issues/1)，[方法 ②](https://github.com/yt-dlp/yt-dlp/issues/7271#issuecomment-1584404779)
 - q: 有些网站没办法播放？ a：多试几次，如果还是不行那也是无能为力，说明不支持！
 - q：没办法唤起 mpv 播放器？a：请按照教程一步一步来！
 - q：为何加载很慢？a：加载快慢与网站加载速度和网速以及 yt-dlp 解析速度有关
