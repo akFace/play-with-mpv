@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.6
+// @version      1.1.7
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -120,7 +120,6 @@
         ? `--http-header-fields="referrer: ${media.referrer}"`
         : "",
       media.cookie ? `--http-header-fields="Cookie: ${media.cookie}"` : "",
-      media.cookie ? `--cookies="${media.cookie}"` : "",
       media.ua ? `--user-agent="${media.ua}"` : "",
       media.referrer ? `--referrer="${media.referrer}"` : "",
       media.origin ? `--origin="${media.origin}"` : "",
@@ -129,6 +128,7 @@
       httpProxyArg,
       qualityArg,
       `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
+      `--cookies=yes`,
     ];
 
     // 智能处理字幕下载与自动翻译 (根据当前面板选择的语言)
