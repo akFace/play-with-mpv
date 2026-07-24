@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.7
+// @version      1.1.8
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -38,7 +38,7 @@
       langLabel: "语言 / Language",
     },
     en: {
-      playBtnText: "🎬 Play in MPV",
+      playBtnText: "🎬 MPV",
       panelTitle: "⚡ MPV Configuration",
       proxyToggle: "Enable Proxy",
       proxyPlaceholder: "e.g. http://127.0.0.1:7897",
@@ -66,7 +66,7 @@
     subEnabled: true,
     subTranslate: true,
     syncTime: false, // 是否同步时间
-    btnSize: 44, // 按钮默认大小 (px)
+    btnSize: 40, // 按钮默认大小 (px)
     lang: getBrowserDefaultLang(), // 默认语言自适应
   };
 
@@ -264,13 +264,21 @@
     const container = document.createElement("div");
     container.id = "mpv-control-container";
     container.style.cssText = `
+        background: linear-gradient(135deg, #ff0055, #ff5500) !important;
+        color: white !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-weight: bold !important;
+        border: none !important;
+        border-radius: 50px !important;
+        box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3) !important;
+        cursor: pointer !important;
         position: fixed !important;
         bottom: 30px !important;
         left: 30px !important;
         z-index: 2147483647 !important;
         display: flex !important;
         align-items: center !important;
-        gap: 10px !important;
+         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
       `;
 
     // 1. 齿轮设置按钮
@@ -288,6 +296,8 @@
         align-items: center !important;
         justify-content: center !important;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        padding: 0 !important;
+        margin: 0 !important;
       `;
 
     setBtn.addEventListener("mouseenter", () => {
@@ -303,26 +313,22 @@
     const playBtn = document.createElement("button");
     playBtn.id = "mpv-float-btn";
     playBtn.style.cssText = `
-        background: linear-gradient(135deg, #ff0055, #ff5500) !important;
         color: white !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         font-weight: bold !important;
         border: none !important;
-        border-radius: 50px !important;
-        box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3) !important;
         cursor: pointer !important;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
         user-select: none !important;
         white-space: nowrap !important;
+        padding: 0;
+        background: transparent !important;
       `;
 
-    playBtn.addEventListener("mouseenter", () => {
-      playBtn.style.transform = "scale(1.05) translateY(-2px)";
-      playBtn.style.boxShadow = "0 6px 20px rgba(255, 0, 85, 0.4)";
+    container.addEventListener("mouseenter", () => {
+      container.style.transform = "scale(1) translate(3px)";
     });
-    playBtn.addEventListener("mouseleave", () => {
-      playBtn.style.transform = "scale(1) translateY(0px)";
-      playBtn.style.boxShadow = "0 4px 15px rgba(255, 0, 85, 0.3)";
+    container.addEventListener("mouseleave", () => {
+      container.style.transform = "scale(1) translateX(0)";
     });
 
     // 根据设置值动态更新按钮尺寸
@@ -332,7 +338,8 @@
       setBtn.style.fontSize = `${size * 0.45}px`;
 
       playBtn.style.height = `${size}px`;
-      playBtn.style.padding = `0 ${size * 0.5}px`;
+      playBtn.style.paddingLeft = `${size * 0.2}px`;
+      playBtn.style.paddingRight = `${size * 0.4}px`;
       playBtn.style.fontSize = `${size * 0.34}px`;
     }
 
@@ -599,7 +606,7 @@
   // ==========================================
   async function handleMpvPlay() {
     const hostname = window.location.hostname;
-    const title = document.title;
+    const title = document.title || "Video Streaming";
     let media = {
       video: null,
       title: title,
