@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.9
+// @version      1.1.10
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -236,19 +236,80 @@
 
   interceptedVideo();
 
-  // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
+  // 从上层页面接收数据到iframe，主要是视频源、标题、来源等信息
+  let mediaData = null;
+
+  /**
+   * 向指定的 iframe 发送当前页面的标题
+   * @param {HTMLIFrameElement} iframeElement - 目标 iframe DOM 元素
+   * @param {string} [customTitle] - 可选，不传则默认取主页面的 document.title
+   */
+  function initSendIframeMessage(iframeElement, data) {
+    function sendTitleToIframe(iframe, sendData) {
+      if (!iframe || !iframe.contentWindow) {
+        console.warn("目标 iframe 不存在或尚未加载完成");
+        return;
+      }
+
+      // 执行发送
+      iframe.contentWindow.postMessage(
+        {
+          type: "SET_DATA_PLAYER",
+          data: sendData,
+        },
+        "*"
+      ); // 生产环境可将 '*' 替换为具体的目标 origin 确保安全
+    }
+    // 1. iframe 加载完成后发送一次
+    iframeElement.addEventListener("load", () => {
+      sendTitleToIframe(iframeElement, data);
+    });
+
+    // 2. 如果 iframe 已经加载完成了，立即发送一次
+    if (
+      iframeElement.contentDocument &&
+      iframeElement.contentDocument.readyState === "complete"
+    ) {
+      sendTitleToIframe(iframeElement, data);
+    } else {
+      // 或者简单粗暴延时重试一次（应对部分动态渲染的页面）
+      setTimeout(() => sendTitleToIframe(iframeElement, data), 1000);
+    }
+  }
+
+  function handleIframeMessage() {
+    window.addEventListener("message", (e) => {
+      if (e.data && e.data.type === "SET_DATA_PLAYER") {
+        const data = e.data.data;
+        mediaData = data;
+      }
+    });
+  }
+
+  // 初始化 iframe 设置和消息监听
   function initSetIframe() {
+    // 监听页面消息，接收iframe传来的数据
+    handleIframeMessage();
     setTimeout(() => {
       const iframes = document.querySelectorAll("iframe");
       if (iframes) {
         iframes.forEach((frame) => {
+          const data = {
+            title: document.title,
+            origin: window.location.origin,
+            referrer:
+              document.referrer ||
+              window.location.origin + window.location.pathname,
+          };
+          initSendIframeMessage(frame, data);
+          // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
           if (frame.sandbox) {
             frame.sandbox =
               "allow-popups allow-scripts allow-same-origin allow-top-navigation allow-forms";
           }
         });
       }
-    }, 1500);
+    }, 1000);
   }
 
   // ==========================================
@@ -272,8 +333,8 @@
         box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3) !important;
         cursor: pointer !important;
         position: fixed !important;
-        bottom: 30px !important;
-        left: 30px !important;
+        bottom: 40px !important;
+        left: 40px !important;
         z-index: 2147483647 !important;
         display: flex !important;
         align-items: center !important;
@@ -605,13 +666,17 @@
   // ==========================================
   async function handleMpvPlay() {
     const hostname = window.location.hostname;
-    const title = document.title || "Video Streaming";
+    let title = mediaData && mediaData.title ? mediaData.title : document.title;
+    const origin = (mediaData && mediaData.origin) || window.location.origin;
+    const referrer =
+      (mediaData && mediaData.referrer) ||
+      document.referrer ||
+      window.location.origin + window.location.pathname;
     let media = {
       video: null,
       title: title,
-      origin: window.location.origin,
-      referrer:
-        document.referrer || window.location.origin + window.location.pathname,
+      origin: origin,
+      referrer: referrer,
       cookie: document.cookie,
       ua: navigator.userAgent,
       time: 0,
