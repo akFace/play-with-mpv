@@ -9,15 +9,19 @@
 
 ## 🧱 安装
 
-### 1. 安装油猴插件
+### 1. 安装 mpv 播放器
+
+- [前往按教程下载安装](https://github.com/akFace/mpv.config) （**已安装的可跳过此步骤**）
+
+### 2. 安装油猴插件
 
 - [Tampermonkey](https://www.tampermonkey.net/index.php)
 
-### 2. 安装油猴脚本
+### 3. 安装油猴脚本
 
 - [play-with-mpv](https://greasyfork.org/zh-CN/scripts/587265)
 
-### 3. 安装 URL Scheme Handler
+### 4. 安装 URL Scheme Handler
 
 - 下载：[URL Scheme Handler](https://github.com/LuckyPuppy514/url-scheme-handler)
 
