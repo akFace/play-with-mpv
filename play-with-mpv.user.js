@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.10
+// @version      1.1.11
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -10,6 +10,8 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-end
+// @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/tool/raw/refs/heads/master/yt_dlp/yt_dlp_supported_sites.json
+// @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
 // @downloadURL  https://update.greasyfork.org/scripts/587265/%E4%B8%80%E9%94%AE%E5%94%A4%E8%B5%B7%20MPV%20%E6%92%AD%E6%94%BE%E5%99%A8%EF%BC%88%E5%85%A8%E5%B1%80%E9%85%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%89%88%EF%BC%89.user.js
 // @updateURL    https://update.greasyfork.org/scripts/587265/%E4%B8%80%E9%94%AE%E5%94%A4%E8%B5%B7%20MPV%20%E6%92%AD%E6%94%BE%E5%99%A8%EF%BC%88%E5%85%A8%E5%B1%80%E9%85%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%89%88%EF%BC%89.meta.js
@@ -18,6 +20,9 @@
 (function () {
   ("use strict");
 
+  // 读取 yt-dlp 支持的网站列表 JSON 数据
+  const jsonDataYtDlp = GM_getResourceText("yt_dlp_supported_sites");
+  const yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
   // 用于保存嗅探到的真实视频源地址
   let interceptedVideoUrls = new Set();
   let interceptedSubtitleUrls = new Set(); // 新增：存储嗅探到的字幕
@@ -120,8 +125,8 @@
         ? `--http-header-fields="referrer: ${media.referrer}"`
         : "",
       media.cookie ? `--http-header-fields="Cookie: ${media.cookie}"` : "",
-      media.ua ? `--user-agent="${media.ua}"` : "",
       media.referrer ? `--referrer="${media.referrer}"` : "",
+      media.ua ? `--user-agent="${media.ua}"` : "",
       startTimeArg,
       proxyArg,
       httpProxyArg,
@@ -303,9 +308,11 @@
           };
           initSendIframeMessage(frame, data);
           // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
-          if (frame.sandbox) {
-            frame.sandbox =
-              "allow-popups allow-scripts allow-same-origin allow-top-navigation allow-forms";
+          if (frame.getAttribute("sandbox")) {
+            frame.setAttribute(
+              "sandbox",
+              "allow-popups allow-scripts allow-same-origin allow-top-navigation allow-forms"
+            );
           }
         });
       }
@@ -697,10 +704,18 @@
       video.pause();
     }
 
+    // 检查当前网站是否在 yt-dlp 支持的站点列表中
+    const is_yt_dlp_supported_sites =
+      yt_dlp_supported_sites &&
+      yt_dlp_supported_sites.extractors?.some((site) =>
+        hostname.includes(site.toLowerCase().split(":")[0])
+      );
+    console.log("is_yt_dlp_supported_sites:", is_yt_dlp_supported_sites);
     if (
       hostname.includes("bilibili.com") ||
       hostname.includes("youtube.com") ||
-      hostname.includes("youtu.be")
+      hostname.includes("youtu.be") ||
+      is_yt_dlp_supported_sites
     ) {
       media.video = window.location.href;
       openMpv(media);
