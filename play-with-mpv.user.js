@@ -10,7 +10,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-end
-// @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/tool/raw/refs/heads/master/yt_dlp/yt_dlp_supported_sites.json
+// @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/play-with-mpv/raw/main/static/yt_dlp_supported_sites.json
 // @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
 // @downloadURL  https://update.greasyfork.org/scripts/587265/%E4%B8%80%E9%94%AE%E5%94%A4%E8%B5%B7%20MPV%20%E6%92%AD%E6%94%BE%E5%99%A8%EF%BC%88%E5%85%A8%E5%B1%80%E9%85%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%89%88%EF%BC%89.user.js
