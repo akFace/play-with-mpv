@@ -44,10 +44,14 @@
 
 ### 更新导出 yt-dlp 支持的网站（开发用）
 
-- 安装命令行版本 yt-dlp
-- 安装 python
+- install 👉 [python](https://www.python.org/downloads/)
+- install yt-dlp 👇
 
-- 执行命令，自动导出到 static 文件夹
+```sh
+pip install yt-dlp
+```
+
+- 执行命令，自动导出到 static 文件夹 👇
 
 ```sh
 python get_yt_dlp_supported_sites.py
@@ -58,5 +62,6 @@ python get_yt_dlp_supported_sites.py
 - [mpv](https://mpv.io/)
 - [mpvnet](https://github.com/mpvnet-player/mpv.net)
 - [mpv-config](https://github.com/akFace/mpv.config)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 - [external-player](https://github.com/LuckyPuppy514/external-player)
 - [URL Scheme Handler](https://github.com/LuckyPuppy514/url-scheme-handler)
