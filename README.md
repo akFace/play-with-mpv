@@ -42,6 +42,17 @@
 
 ![image](https://github.com/akFace/picx-images-hosting/raw/master/Tools/Snipaste_2026-07-16_17-37-57.1ziyeqyi5c.webp)
 
+### 更新导出 yt-dlp 支持的网站（开发用）
+
+- 安装命令行版本 yt-dlp
+- 安装 python
+
+- 执行命令，自动导出到 static 文件夹
+
+```sh
+python get_yt_dlp_supported_sites.py
+```
+
 ### 参考相关仓库
 
 - [mpv](https://mpv.io/)
