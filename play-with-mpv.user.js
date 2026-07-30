@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.12
+// @version      1.1.13
 // @description   play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -203,38 +203,43 @@
       }
       return originalOpen.apply(this, [method, url, ...args]);
     };
-
     function checkAndSaveUrl(url) {
+      const fileVideoExtensions = [
+        ".m3u8",
+        ".mpd",
+        ".mp4",
+        ".flv",
+        ".mkv",
+        ".webm",
+      ];
+      const fileSubtitleExtensions = [".vtt", ".srt", ".ass", ".pgs"];
+      // 排除日志、追踪url
+      const excludeKey = [
+        "log",
+        "stat",
+        "report",
+        "ping.",
+        "track.",
+        "track_ua.",
+        "analysis",
+        "console",
+      ];
       try {
         const urlObj = new URL(url, window.location.href);
         const path = urlObj.pathname.toLowerCase();
-
         if (
-          path.endsWith(".m3u8") ||
-          path.endsWith(".mpd") ||
-          path.endsWith(".mp4") ||
-          path.endsWith(".flv") ||
-          url.includes(".m3u8?") ||
-          url.includes(".mpd?") ||
-          url.includes("playlist.m3u8")
+          fileVideoExtensions.some((ext) => path.endsWith(ext)) ||
+          fileVideoExtensions.some((ext) => url.includes(ext))
         ) {
-          if (
-            !url.includes("log") &&
-            !url.includes("stat") &&
-            !url.includes("report")
-          ) {
+          if (!excludeKey.some((ext) => url.includes(ext))) {
             interceptedVideoUrls.add(urlObj.href);
             console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
           }
         }
         // 新增：字幕嗅探
         if (
-          path.endsWith(".vtt") ||
-          path.endsWith(".srt") ||
-          path.endsWith(".ass") ||
-          url.endsWith(".vtt") ||
-          url.endsWith(".srt") ||
-          url.endsWith(".ass")
+          fileSubtitleExtensions.some((ext) => path.endsWith(ext)) ||
+          fileSubtitleExtensions.some((ext) => url.includes(ext))
         ) {
           interceptedSubtitleUrls.add(urlObj.href);
           console.log("🎉 成功嗅探到字幕文件:", urlObj.href);
