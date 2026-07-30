@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器（全局配置同步版）
 // @namespace    https://update.greasyfork.org/scripts/587265
-// @version      1.1.11
+// @version      1.1.12
 // @description  在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -22,7 +22,10 @@
 
   // 读取 yt-dlp 支持的网站列表 JSON 数据
   const jsonDataYtDlp = GM_getResourceText("yt_dlp_supported_sites");
-  const yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
+  let yt_dlp_supported_sites = null;
+  if (jsonDataYtDlp) {
+    yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
+  }
   // 用于保存嗅探到的真实视频源地址
   let interceptedVideoUrls = new Set();
   let interceptedSubtitleUrls = new Set(); // 新增：存储嗅探到的字幕
@@ -302,9 +305,7 @@
           const data = {
             title: document.title,
             origin: window.location.origin,
-            referrer:
-              document.referrer ||
-              window.location.origin + window.location.pathname,
+            referrer: window.location.origin + window.location.pathname,
           };
           initSendIframeMessage(frame, data);
           // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
@@ -677,7 +678,6 @@
     const origin = (mediaData && mediaData.origin) || window.location.origin;
     const referrer =
       (mediaData && mediaData.referrer) ||
-      document.referrer ||
       window.location.origin + window.location.pathname;
     let media = {
       video: null,
