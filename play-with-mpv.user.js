@@ -213,34 +213,63 @@
         ".webm",
       ];
       const fileSubtitleExtensions = [".vtt", ".srt", ".ass", ".pgs"];
-      // 排除日志、追踪url
+
+      // 排除关键词
       const excludeKey = [
-        "log",
-        "stat",
-        "report",
-        "ping.",
-        "track.",
-        "track_ua.",
-        "analysis",
-        "console",
+        "/log",
+        "/stat",
+        "/report",
+        "/ping",
+        "/track",
+        "/track_ua",
+        "/analysis",
+        "/console",
+        "/preview",
+        // --- 错误监控与反馈 ---
+        "sentry",
+        "bugsnag",
+        "crash",
+        "feedback",
+        "monitor",
+        "exception",
       ];
+
       try {
         const urlObj = new URL(url, window.location.href);
-        const path = urlObj.pathname.toLowerCase();
-        if (
-          fileVideoExtensions.some((ext) => path.endsWith(ext)) ||
-          fileVideoExtensions.some((ext) => url.includes(ext))
-        ) {
-          if (!excludeKey.some((ext) => url.includes(ext))) {
+        const pathnameLower = urlObj.pathname.toLowerCase(); // 关键：只取路径部分并转小写
+
+        // 1. 检查 pathname 是否以合法的视频格式结尾（允许后面带 ?query 参数）
+        // 例如：/path/video.m3u8?token=123 的 pathname 是 /path/video.m3u8，完美匹配
+        let matchedExt = fileVideoExtensions.find((ext) =>
+          pathnameLower.endsWith(ext)
+        );
+
+        if (matchedExt) {
+          const urlLower = urlObj.href.toLowerCase();
+          let shouldExclude = false;
+
+          // 2. 检查路径或参数中是否包含排除关键词
+          for (const key of excludeKey) {
+            const keyIndex = urlLower.indexOf(key.toLowerCase());
+            const extIndex = urlLower.indexOf(matchedExt.toLowerCase());
+
+            // 如果排除词存在，且出现在视频后缀的前面，则排除
+            if (keyIndex !== -1 && keyIndex < extIndex) {
+              shouldExclude = true;
+              break;
+            }
+          }
+
+          if (!shouldExclude) {
             interceptedVideoUrls.add(urlObj.href);
             console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
+          } else {
+            console.log("🛡️ 已拦截（排除词在视频流前面）:", urlObj.href);
           }
         }
-        // 新增：字幕嗅探
-        if (
-          fileSubtitleExtensions.some((ext) => path.endsWith(ext)) ||
-          fileSubtitleExtensions.some((ext) => url.includes(ext))
-        ) {
+
+        // 3. 字幕嗅探逻辑保持不变
+        if (fileSubtitleExtensions.some((ext) => pathnameLower.endsWith(ext))) {
           interceptedSubtitleUrls.add(urlObj.href);
           console.log("🎉 成功嗅探到字幕文件:", urlObj.href);
         }
