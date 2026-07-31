@@ -27,6 +27,8 @@
   if (jsonDataYtDlp) {
     yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
   }
+  // 排除来自yt-dlp 支持的网站，直接使用插件解析方式
+  const excludeYtDlpSiteKeyWord = ["xiaohongshu.com", "douyin.com"];
   // 用于保存嗅探到的真实视频源地址
   let interceptedVideoUrls = new Set();
   let interceptedSubtitleUrls = new Set(); // 新增：存储嗅探到的字幕
@@ -176,6 +178,50 @@
     window.open(`ush://MPV?${compress(args.join(" "))}`, "_self");
   }
 
+  /**
+   * 监听网页 URL 变化
+   * @param {Function} callback - URL 发生变化时的回调函数，接收新的 URL 作为参数
+   * @returns {Function} unobserve - 用于取消监听的函数
+   */
+  function watchUrlChange(callback) {
+    let lastUrl = location.href;
+
+    // 触发回调的统一处理函数
+    const handleUrlChange = () => {
+      const currentUrl = location.href;
+      if (currentUrl !== lastUrl) {
+        lastUrl = currentUrl;
+        callback(currentUrl);
+      }
+    };
+
+    // 1. 监听浏览器的前进、后退按钮 (history.back / history.forward / 用户的物理返回)
+    window.addEventListener("popstate", handleUrlChange);
+
+    // 2. 重写 history.pushState（针对代码触发的路由跳转）
+    const originalPushState = history.pushState;
+    history.pushState = function (...args) {
+      const result = originalPushState.apply(this, args);
+      handleUrlChange();
+      return result;
+    };
+
+    // 3. 重写 history.replaceState（针对代码触发的替换路由）
+    const originalReplaceState = history.replaceState;
+    history.replaceState = function (...args) {
+      const result = originalReplaceState.apply(this, args);
+      handleUrlChange();
+      return result;
+    };
+
+    // 返回一个用于卸载监听的清理函数（可选）
+    return function unobserve() {
+      window.removeEventListener("popstate", handleUrlChange);
+      history.pushState = originalPushState;
+      history.replaceState = originalReplaceState;
+    };
+  }
+
   async function interceptedVideo() {
     // 监听所有资源加载请求
     const observer = new PerformanceObserver((list) => {
@@ -278,6 +324,16 @@
   }
 
   interceptedVideo();
+
+  // 开始监听 URL 变化
+  const unwatch = watchUrlChange((newUrl) => {
+    console.log("检测到 URL 发生变化:", newUrl);
+    interceptedVideoUrls.clear();
+    interceptedSubtitleUrls.clear();
+  });
+
+  // 如果不需要时，可以调用它来取消监听
+  // unwatch();
 
   // 从上层页面接收数据到iframe，主要是视频源、标题、来源等信息
   let mediaData = null;
@@ -704,11 +760,106 @@
     playBtn.addEventListener("click", handleMpvPlay);
   }
 
+  /**==========================================
+   * 网页顶部居中的透明 Loading
+   * @returns {Object} 包含 destroy 方法的对象，用于销毁 Loading
+   * ==========================================
+   */
+  function showLoading() {
+    // 1. 如果页面中已经存在，先清除旧的
+    const existingContainer = document.getElementById(
+      "custom-top-spinner-container"
+    );
+    if (existingContainer) {
+      existingContainer.remove();
+    }
+
+    // 2. 动态注入 CSS 样式
+    const styleId = "custom-top-spinner-styles";
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.innerHTML = `
+          #custom-top-spinner-container {
+              position: fixed;
+              top: 12px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: transparent;
+              z-index: 2147483647;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              pointer-events: none; /* 鼠标穿透，完全不影响点击网页 */
+              opacity: 0;
+              transition: opacity 0.3s ease;
+          }
+          #custom-top-spinner-container.fade-in {
+              opacity: 1;
+          }
+          .custom-top-spinner  {
+              width: 50px;
+              aspect-ratio: 1;
+              display: grid;
+              border: 4px solid #0000;
+              border-radius: 50%;
+              border-color: #ccc #0000;
+              animation: custom-top-spinner 1s infinite linear;
+            }
+          .custom-top-spinner::before,.custom-top-spinner::after  {
+              content: "";
+              grid-area: 1/1;
+              margin: 2px;
+              border: inherit;
+              border-radius: 50%;
+            }
+          .custom-top-spinner::before  {
+              border-color: #f03355 #0000;
+              animation: inherit;
+              animation-duration: 0.5s;
+              animation-direction: reverse;
+            }
+          .custom-top-spinner::after  {
+              margin: 8px;
+            }
+          @keyframes custom-top-spinner  {
+              100%  {
+              transform: rotate(1turn);
+            }
+          }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // 3. 创建 DOM 结构
+    const container = document.createElement("div");
+    container.id = "custom-top-spinner-container";
+    container.innerHTML = `<div class="custom-top-spinner"></div>`;
+    document.body.appendChild(container);
+
+    // 触发淡入动画
+    requestAnimationFrame(() => {
+      container.classList.add("fade-in");
+    });
+
+    // 4. 返回销毁方法
+    return {
+      destroy: function () {
+        if (container && container.parentNode) {
+          container.style.opacity = "0";
+          setTimeout(() => {
+            container.remove();
+          }, 300);
+        }
+      },
+    };
+  }
   // ==========================================
   // 核心嗅探与播放分流逻辑
   // ==========================================
   async function handleMpvPlay() {
     const hostname = window.location.hostname;
+    const href = window.location.href;
     let title = mediaData && mediaData.title ? mediaData.title : document.title;
     const origin = (mediaData && mediaData.origin) || window.location.origin;
     const referrer =
@@ -745,12 +896,17 @@
       yt_dlp_supported_sites.extractors?.some((site) =>
         hostname.includes(site.toLowerCase().split(":")[0])
       );
+
+    const isExcludeYtDlpSiteKeyWord = excludeYtDlpSiteKeyWord.some((site) =>
+      href.includes(site)
+    );
     console.log("is_yt_dlp_supported_sites:", is_yt_dlp_supported_sites);
     if (
-      hostname.includes("bilibili.com") ||
-      hostname.includes("youtube.com") ||
-      hostname.includes("youtu.be") ||
-      is_yt_dlp_supported_sites
+      !isExcludeYtDlpSiteKeyWord &&
+      (hostname.includes("bilibili.com") ||
+        hostname.includes("youtube.com") ||
+        hostname.includes("youtu.be") ||
+        is_yt_dlp_supported_sites)
     ) {
       media.video = window.location.href;
       openMpv(media);
@@ -771,18 +927,42 @@
       }
     }
 
-    if (interceptedVideoUrls.size > 0) {
-      const urlList = Array.from(interceptedVideoUrls);
-      const targetUrl = urlList[urlList.length - 1];
-      console.log("通过嗅探获取到真实视频流:", targetUrl);
-      media.video = targetUrl;
-      openMpv(media);
-      return;
-    }
-
-    console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
-    media.video = window.location.href;
-    openMpv(media);
+    let TIME_OUT = 10; // 超时(秒)未检测到视频流直接打开网页链接
+    const loadingInstance = showLoading();
+    // 轮询读取视频流
+    const loopLoadInterceptedVideoUrls = () => {
+      const openMpvByVidelUrls = () => {
+        const urlList = Array.from(interceptedVideoUrls);
+        const targetUrl = urlList[urlList.length - 1];
+        console.log("通过嗅探获取到真实视频流:", targetUrl);
+        media.video = targetUrl;
+        openMpv(media);
+        loadingInstance.destroy();
+      };
+      if (interceptedVideoUrls.size > 0) {
+        openMpvByVidelUrls();
+        return;
+      }
+      const loopTimer = setTimeout(() => {
+        TIME_OUT--;
+        if (interceptedVideoUrls.size > 0) {
+          clearInterval(loopTimer);
+          openMpvByVidelUrls();
+          return;
+        } else {
+          if (TIME_OUT <= 0) {
+            console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
+            media.video = window.location.href;
+            openMpv(media);
+            loadingInstance.destroy();
+          } else {
+            loopLoadInterceptedVideoUrls();
+          }
+        }
+      }, 1000);
+    };
+    // 轮询读取视频流
+    loopLoadInterceptedVideoUrls();
   }
 
   function getVideoArea(video) {
