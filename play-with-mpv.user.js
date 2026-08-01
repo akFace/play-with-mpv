@@ -44,6 +44,7 @@
       noLimit: "不作限制 (最高画质)",
       syncTimeLabel: "同步网页视频进度 (时间)",
       sizeLabel: "按钮尺寸调节",
+      opacityLabel: "贴边隐藏透明度", // 新增
       subToggle: "自动下载与加载字幕",
       subTranslate: "自动翻译外语为中文 (CC)",
       langLabel: "语言 / Language",
@@ -57,13 +58,14 @@
       noLimit: "No Limit (Best Quality)",
       syncTimeLabel: "Sync Video Progress (Time)",
       sizeLabel: "Button Size Adjustment",
+      opacityLabel: "Edge Hide Opacity", // 新增
       subToggle: "Auto Download & Load Subs",
       subTranslate: "Auto Translate Subs to English (CC)",
       langLabel: "Language / 语言",
     },
   };
 
-  // 获取浏览器默认语言 (如果是中文相关则设为 zh，其余默认为 en)
+  // 获取浏览器默认语言
   function getBrowserDefaultLang() {
     const lang = navigator.language || navigator.userLanguage;
     return lang && lang.toLowerCase().startsWith("zh") ? "zh" : "en";
@@ -78,6 +80,9 @@
     subTranslate: true,
     syncTime: false, // 是否同步时间
     btnSize: 40, // 按钮默认大小 (px)
+    edgeOpacity: 0.4, // 贴边隐藏透明度
+    positionSide: "right", // 记录在左侧还是右侧
+    positionTop: -1, // 记录垂直 Y 轴位置
     lang: getBrowserDefaultLang(), // 默认语言自适应
   };
 
@@ -141,26 +146,21 @@
       `--cookies=yes`,
     ];
 
-    // 智能处理字幕下载与自动翻译 (根据当前面板选择的语言)
     if (settings.subEnabled) {
       args.push(`--ytdl-raw-options-append=write-subs=`);
       args.push(`--ytdl-raw-options-append=write-auto-subs=`);
 
       if (settings.lang === "zh") {
-        // 当前设置为中文：优先自动翻译并加载中文简体字幕
         if (settings.subTranslate) {
-          // 允许匹配：源字幕是英文且可自动翻译为中文、自动生成的中文、各类中文简体/繁体变体
           args.push(
             `--ytdl-raw-options-append=sub-langs="en-orig-zh-Hans,en-orig-zh-CN,en-orig-zh,auto-zh-Hans,auto-zh-CN,auto-zh,zh-Hans,zh-CN,zh,zh-TW,zh-HK"`
           );
         } else {
-          // 不强制自动翻译，但模糊匹配所有中文
           args.push(
             `--ytdl-raw-options-append=sub-langs="zh-Hans,zh-CN,zh,zh-TW,zh-HK,en"`
           );
         }
       } else {
-        // 当前设置为英文：优先自动翻译并加载英文字幕
         if (settings.subTranslate) {
           args.push(
             `--ytdl-raw-options-append=sub-langs="zh-orig-en,auto-en,en"`
@@ -185,8 +185,6 @@
    */
   function watchUrlChange(callback) {
     let lastUrl = location.href;
-
-    // 触发回调的统一处理函数
     const handleUrlChange = () => {
       const currentUrl = location.href;
       if (currentUrl !== lastUrl) {
@@ -194,19 +192,13 @@
         callback(currentUrl);
       }
     };
-
-    // 1. 监听浏览器的前进、后退按钮 (history.back / history.forward / 用户的物理返回)
     window.addEventListener("popstate", handleUrlChange);
-
-    // 2. 重写 history.pushState（针对代码触发的路由跳转）
     const originalPushState = history.pushState;
     history.pushState = function (...args) {
       const result = originalPushState.apply(this, args);
       handleUrlChange();
       return result;
     };
-
-    // 3. 重写 history.replaceState（针对代码触发的替换路由）
     const originalReplaceState = history.replaceState;
     history.replaceState = function (...args) {
       const result = originalReplaceState.apply(this, args);
@@ -227,28 +219,24 @@
     const observer = new PerformanceObserver((list) => {
       list.getEntries().forEach((entry) => {
         const url = entry.name;
-        checkAndSaveUrl(url); // 复用你的判断逻辑
+        checkAndSaveUrl(url);
       });
     });
-    // 观察资源请求
     observer.observe({ entryTypes: ["resource"] });
 
     const originalFetch = window.fetch;
     window.fetch = async function (...args) {
       const url = args[0];
-      if (typeof url === "string") {
-        checkAndSaveUrl(url);
-      }
+      if (typeof url === "string") checkAndSaveUrl(url);
       return originalFetch.apply(this, args);
     };
 
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url, ...args) {
-      if (typeof url === "string") {
-        checkAndSaveUrl(url);
-      }
+      if (typeof url === "string") checkAndSaveUrl(url);
       return originalOpen.apply(this, [method, url, ...args]);
     };
+
     function checkAndSaveUrl(url) {
       const fileVideoExtensions = [
         ".m3u8",
@@ -305,16 +293,12 @@
               break;
             }
           }
-
           if (!shouldExclude) {
             interceptedVideoUrls.add(urlObj.href);
             console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
-          } else {
-            console.log("🛡️ 已拦截（排除词在视频流前面）:", urlObj.href);
           }
         }
 
-        // 3. 字幕嗅探逻辑保持不变
         if (fileSubtitleExtensions.some((ext) => pathnameLower.endsWith(ext))) {
           interceptedSubtitleUrls.add(urlObj.href);
           console.log("🎉 成功嗅探到字幕文件:", urlObj.href);
@@ -325,7 +309,6 @@
 
   interceptedVideo();
 
-  // 开始监听 URL 变化
   const unwatch = watchUrlChange((newUrl) => {
     console.log("检测到 URL 发生变化:", newUrl);
     interceptedVideoUrls.clear();
@@ -352,12 +335,9 @@
 
       // 执行发送
       iframe.contentWindow.postMessage(
-        {
-          type: "SET_DATA_PLAYER",
-          data: sendData,
-        },
+        { type: "SET_DATA_PLAYER", data: sendData },
         "*"
-      ); // 生产环境可将 '*' 替换为具体的目标 origin 确保安全
+      );
     }
     // 1. iframe 加载完成后发送一次
     iframeElement.addEventListener("load", () => {
@@ -379,8 +359,7 @@
   function handleIframeMessage() {
     window.addEventListener("message", (e) => {
       if (e.data && e.data.type === "SET_DATA_PLAYER") {
-        const data = e.data.data;
-        mediaData = data;
+        mediaData = e.data.data;
       }
     });
   }
@@ -418,10 +397,26 @@
     if (document.getElementById("mpv-control-container")) return;
 
     const settings = getSettings();
+    let currentSide = settings.positionSide || "right";
 
     // 创建右下角主容器
     const container = document.createElement("div");
     container.id = "mpv-control-container";
+
+    // 根据持久化配置初始化布局位置
+    let initialCssTop = "";
+    let initialCssBottom = "bottom: 60px !important;";
+    let initialCssSide = "right: 5px !important;";
+    if (settings.positionTop !== undefined && settings.positionTop >= 0) {
+      initialCssTop = `top: ${settings.positionTop}px !important;`;
+      initialCssBottom = "";
+    }
+    if (currentSide === "left") {
+      initialCssSide = "left: 5px !important;";
+    } else {
+      initialCssSide = "right: 5px !important;";
+    }
+
     container.style.cssText = `
         background: linear-gradient(135deg, #ff0055, #ff5500) !important;
         color: white !important;
@@ -432,25 +427,27 @@
         box-shadow: 0 4px 15px rgba(255, 0, 85, 0.3) !important;
         cursor: pointer !important;
         position: fixed !important;
-        bottom: 60px !important;
-        right: 5px !important;
+        ${initialCssBottom}
+        ${initialCssTop}
+        ${initialCssSide}
         z-index: 2147483647 !important;
         display: flex !important;
         align-items: center !important;
-         transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+        transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
       `;
 
     // 1. 齿轮设置按钮
     const setBtn = document.createElement("button");
     setBtn.id = "mpv-set-btn";
     setBtn.innerHTML = "⚙️";
+    setBtn.title = "点击设置，按住可拖拽位置";
     setBtn.style.cssText = `
         border: none !important;
         border-radius: 50% !important;
         background: rgba(255, 255, 255, 0.9) !important;
         color: #333 !important;
         box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
-        cursor: pointer !important;
+        cursor: grab !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -483,25 +480,44 @@
         background: transparent !important;
       `;
 
-    // --- 新增：倒计时隐藏逻辑 ---
+    // --- 新增：倒计时隐藏逻辑与拖拽逻辑 ---
     let hideTimer = null;
     let isShowModel = false;
-    const HIDE_TIME_OUT = 2000; // 倒计时结束隐藏按钮
+    const HIDE_TIME_OUT = 2000;
 
-    // 隐藏按钮的函数
+    // 拖拽相关状态
+    let isDragging = false;
+    let hasMoved = false;
+    let startX, startY, initialLeft, initialTop;
+
     const hideContainer = () => {
-      container.style.opacity = "0.4"; // 设置为半透明
-      // 往左侧滑出屏幕，只留出 15px 的边缘以便鼠标再次触碰触发显示
-      container.style.transform = "translateX(calc(100% + -20px))";
+      const s = getSettings();
+      const opacity = s.edgeOpacity !== undefined ? s.edgeOpacity : 0.4;
+      container.style.setProperty("opacity", opacity.toString(), "important");
+      if (currentSide === "right") {
+        container.style.setProperty(
+          "transform",
+          "translateX(calc(100% + -20px))",
+          "important"
+        );
+      } else {
+        container.style.setProperty(
+          "transform",
+          "translateX(calc(-100% + 20px))",
+          "important"
+        );
+      }
     };
 
-    // 显示按钮的函数
     const showContainer = () => {
-      container.style.opacity = "1"; // 恢复不透明
-      container.style.transform = "scale(1) translate(0px)"; // 恢复原来的悬浮微动效果
+      container.style.setProperty("opacity", "1", "important");
+      container.style.setProperty(
+        "transform",
+        "scale(1) translateX(0px)",
+        "important"
+      );
     };
 
-    // 启动 3 秒倒计时函数
     const startHideTimer = () => {
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => {
@@ -509,24 +525,152 @@
       }, HIDE_TIME_OUT);
     };
 
-    // 鼠标移入：清除定时器并完全显示
     container.addEventListener("mouseenter", () => {
+      if (isDragging) return;
       clearTimeout(hideTimer);
       showContainer();
     });
 
-    // 鼠标移出：先恢复到默认悬浮位置，并重新开始 3 秒倒计时
     container.addEventListener("mouseleave", () => {
-      if (isShowModel) return;
-      container.style.transform = "scale(1) translateX(0)";
+      if (isShowModel || isDragging) return;
+      container.style.setProperty(
+        "transform",
+        "scale(1) translateX(0)",
+        "important"
+      );
       startHideTimer();
     });
 
-    // 按钮刚创建（初始化）时，也启动一次倒计时
     startHideTimer();
-    // ----------------------------
 
-    // 根据设置值动态更新按钮尺寸
+    // =============== 拖拽实现 ===============
+    function snapToEdge() {
+      const rect = container.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // 保证在纵向视口内
+      let targetTop = rect.top;
+      if (targetTop < 0) targetTop = 0;
+      if (targetTop + rect.height > viewportHeight)
+        targetTop = viewportHeight - rect.height;
+
+      container.style.setProperty("top", `${targetTop}px`, "important");
+      container.style.setProperty("bottom", "auto", "important");
+
+      // 根据当前位置计算靠左还是靠右
+      const centerX = rect.left + rect.width / 2;
+      if (centerX < viewportWidth / 2) {
+        currentSide = "left";
+        container.style.setProperty("left", "5px", "important");
+        container.style.setProperty("right", "auto", "important");
+      } else {
+        currentSide = "right";
+        container.style.setProperty("right", "5px", "important");
+        container.style.setProperty("left", "auto", "important");
+      }
+
+      container.style.setProperty(
+        "transform",
+        "scale(1) translateX(0)",
+        "important"
+      );
+      startHideTimer(); // 贴边后开始倒计时自动隐藏
+
+      // 持久化记录停靠位置
+      const s = getSettings();
+      s.positionSide = currentSide;
+      s.positionTop = targetTop;
+      saveSettings(s);
+    }
+
+    function onDragStart(e) {
+      if (e.type === "mousedown" && e.button !== 0) return; // 仅左键
+      let clientX, clientY;
+      if (e.type === "touchstart") {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      startX = clientX;
+      startY = clientY;
+
+      const rect = container.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      hasMoved = false;
+
+      // 拖拽时取消过渡动画
+      container.style.setProperty("transition", "none", "important");
+
+      document.addEventListener("mousemove", onDragMove);
+      document.addEventListener("touchmove", onDragMove, { passive: false });
+      document.addEventListener("mouseup", onDragEnd);
+      document.addEventListener("touchend", onDragEnd);
+    }
+
+    function onDragMove(e) {
+      let clientX, clientY;
+      if (e.type === "touchmove") {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+
+      // 判断确实有移动才视为拖拽（防止轻微抖动误判）
+      if (!hasMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        hasMoved = true;
+        isDragging = true;
+        // 清除默认的 right/bottom 样式以允许 top/left 自由生效
+        container.style.setProperty("right", "auto", "important");
+        container.style.setProperty("bottom", "auto", "important");
+        setBtn.style.cursor = "grabbing";
+      }
+
+      if (hasMoved) {
+        if (e.cancelable) e.preventDefault(); // 防止触屏滚动
+        container.style.setProperty(
+          "left",
+          `${initialLeft + dx}px`,
+          "important"
+        );
+        container.style.setProperty("top", `${initialTop + dy}px`, "important");
+      }
+    }
+
+    function onDragEnd(e) {
+      document.removeEventListener("mousemove", onDragMove);
+      document.removeEventListener("touchmove", onDragMove);
+      document.removeEventListener("mouseup", onDragEnd);
+      document.removeEventListener("touchend", onDragEnd);
+
+      setBtn.style.cursor = "grab";
+      container.style.setProperty(
+        "transition",
+        "all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)",
+        "important"
+      );
+
+      if (hasMoved) {
+        snapToEdge();
+        // 延时重置拖拽标记，拦截随后的点击事件
+        setTimeout(() => {
+          isDragging = false;
+        }, 0);
+      }
+    }
+
+    setBtn.addEventListener("mousedown", onDragStart);
+    setBtn.addEventListener("touchstart", onDragStart, { passive: false });
+    // ===========================================
+
     function updateButtonSizes(size) {
       setBtn.style.width = `${size}px`;
       setBtn.style.height = `${size}px`;
@@ -542,15 +686,15 @@
 
     container.appendChild(setBtn);
     container.appendChild(playBtn);
-    document.body.appendChild(container);
 
     // 3. 设置弹窗
     const modal = document.createElement("div");
     modal.id = "mpv-settings-modal";
     modal.style.cssText = `
-        position: fixed !important;
-        bottom: 130px !important;
-        right: 20px !important;
+        position: absolute !important;
+        bottom: calc(100% + 15px) !important;
+        right: 5px !important;
+        cursor: default !important;
         z-index: 2147483647 !important;
         width: 320px !important;
         max-height: 80vh !important;
@@ -628,6 +772,17 @@
               width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
             ">
           </div>
+
+          <!-- 新增透明度调节 -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label id="mpv-label-opacity" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+              <span id="mpv-opacity-val" style="font-size: 11px; color: #ff0055; font-weight: bold;">0.4</span>
+            </div>
+            <input type="range" id="mpv-opacity-slider" min="0" max="1" step="0.1" style="
+              width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
+            ">
+          </div>
         </div>
   
         <!-- 字幕设置 -->
@@ -655,24 +810,34 @@
         </div>
       `;
 
-    document.body.appendChild(modal);
+    const style = document.createElement("style");
+    style.id = "mpv-settings-modal-style";
+    style.innerHTML = `
+          #mpv-settings-modal input, #mpv-settings-modal select, #mpv-settings-modal button {
+             -webkit-appearance: auto;
+          }
+      `;
+    document.head.appendChild(style);
 
-    // DOM 元素引用
+    // 将弹窗附加到 container 内，实现跟随
+    container.appendChild(modal);
+    // 最后将包含弹窗的 container 一并附加到 body
+    document.body.appendChild(container);
+
     const proxyToggle = modal.querySelector("#mpv-proxy-toggle");
     const proxyAddrInput = modal.querySelector("#mpv-proxy-addr");
     const qualitySelect = modal.querySelector("#mpv-quality-select");
     const syncTimeToggle = modal.querySelector("#mpv-time-toggle");
     const sizeSlider = modal.querySelector("#mpv-size-slider");
     const sizeValDisplay = modal.querySelector("#mpv-size-val");
+    const opacitySlider = modal.querySelector("#mpv-opacity-slider");
+    const opacityValDisplay = modal.querySelector("#mpv-opacity-val");
     const subToggle = modal.querySelector("#mpv-sub-toggle");
     const translateToggle = modal.querySelector("#mpv-translate-toggle");
     const translateWrap = modal.querySelector("#mpv-translate-wrap");
     const langSelect = modal.querySelector("#mpv-lang-select");
     const closeBtn = modal.querySelector("#mpv-close-modal");
 
-    // ==========================================
-    // 语言国际化渲染模块
-    // ==========================================
     function updateLanguageUI(langKey) {
       const text = I18N[langKey] || I18N["en"];
 
@@ -684,12 +849,12 @@
       modal.querySelector("#mpv-quality-unlimit").innerText = text.noLimit;
       modal.querySelector("#mpv-label-synctime").innerText = text.syncTimeLabel;
       modal.querySelector("#mpv-label-size").innerText = text.sizeLabel;
+      modal.querySelector("#mpv-label-opacity").innerText = text.opacityLabel;
       modal.querySelector("#mpv-label-sub").innerText = text.subToggle;
       modal.querySelector("#mpv-label-translate").innerText = text.subTranslate;
       modal.querySelector("#mpv-label-lang").innerText = text.langLabel;
     }
 
-    // 从全局 GM_getValue 读取数据并更新 UI 状态
     function loadUiFromSettings() {
       const s = getSettings();
 
@@ -707,6 +872,9 @@
       sizeSlider.value = s.btnSize;
       sizeValDisplay.innerText = `${s.btnSize}px`;
 
+      opacitySlider.value = s.edgeOpacity !== undefined ? s.edgeOpacity : 0.4;
+      opacityValDisplay.innerText = `${opacitySlider.value}`;
+
       subToggle.checked = s.subEnabled;
       translateToggle.checked = s.subTranslate;
       translateToggle.disabled = !s.subEnabled;
@@ -715,24 +883,34 @@
       updateButtonSizes(s.btnSize);
     }
 
-    // 保存全局配置，并在所有网站间生效
     function updateAndSave() {
       const currentSize = parseInt(sizeSlider.value, 10);
       sizeValDisplay.innerText = `${currentSize}px`;
+      const currentOpacity = parseFloat(opacitySlider.value);
+      opacityValDisplay.innerText = `${currentOpacity}`;
       const selectedLang = langSelect.value;
 
-      const s = {
-        proxyEnabled: proxyToggle.checked,
-        networkProxy: proxyAddrInput.value.trim(),
-        quality: qualitySelect.value,
-        syncTime: syncTimeToggle.checked,
-        btnSize: currentSize,
-        subEnabled: subToggle.checked,
-        subTranslate: translateToggle.checked,
-        lang: selectedLang,
-      };
+      const s = getSettings();
+      s.proxyEnabled = proxyToggle.checked;
+      s.networkProxy = proxyAddrInput.value.trim();
+      s.quality = qualitySelect.value;
+      s.syncTime = syncTimeToggle.checked;
+      s.btnSize = currentSize;
+      s.edgeOpacity = currentOpacity;
+      s.subEnabled = subToggle.checked;
+      s.subTranslate = translateToggle.checked;
+      s.lang = selectedLang;
 
       saveSettings(s);
+
+      // 如果当前是隐藏状态，立刻刷新透明度
+      if (!isShowModel && container.style.opacity !== "1") {
+        container.style.setProperty(
+          "opacity",
+          currentOpacity.toString(),
+          "important"
+        );
+      }
 
       updateLanguageUI(selectedLang);
       updateButtonSizes(currentSize);
@@ -745,7 +923,6 @@
 
     loadUiFromSettings();
 
-    // 事件绑定
     [
       proxyToggle,
       qualitySelect,
@@ -758,8 +935,31 @@
     });
     proxyAddrInput.addEventListener("input", updateAndSave);
     sizeSlider.addEventListener("input", updateAndSave);
+    opacitySlider.addEventListener("input", updateAndSave);
 
     function showModal() {
+      // --- 新增：根据当前按钮位置动态调整弹窗弹出方向，防止溢出屏幕 ---
+      const rect = container.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (rect.top < viewportHeight / 2) {
+        modal.style.setProperty("top", "calc(100% + 15px)", "important");
+        modal.style.setProperty("bottom", "auto", "important");
+      } else {
+        modal.style.setProperty("bottom", "calc(100% + 15px)", "important");
+        modal.style.setProperty("top", "auto", "important");
+      }
+
+      if (rect.left < viewportWidth / 2) {
+        modal.style.setProperty("left", "5px", "important");
+        modal.style.setProperty("right", "auto", "important");
+      } else {
+        modal.style.setProperty("right", "5px", "important");
+        modal.style.setProperty("left", "auto", "important");
+      }
+      // -------------------------------------------------------------
+
       showContainer();
       isShowModel = true;
       loadUiFromSettings();
@@ -782,6 +982,8 @@
 
     setBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (isDragging) return; // 拦截被判定为拖拽完成时的点击触发
+
       if (modal.style.display === "none" || modal.style.opacity === "0") {
         showModal();
       } else {
@@ -800,19 +1002,14 @@
     playBtn.addEventListener("click", handleMpvPlay);
   }
 
-  /**==========================================
-   * 网页顶部居中的透明 Loading
-   * @returns {Object} 包含 destroy 方法的对象，用于销毁 Loading
-   * ==========================================
-   */
+  // ==========================================
+  // 网页顶部居中的透明 Loading
+  // ==========================================
   function showLoading() {
-    // 1. 如果页面中已经存在，先清除旧的
     const existingContainer = document.getElementById(
       "custom-top-spinner-container"
     );
-    if (existingContainer) {
-      existingContainer.remove();
-    }
+    if (existingContainer) existingContainer.remove();
 
     // 2. 动态注入 CSS 样式
     const styleId = "custom-top-spinner-styles";
@@ -830,13 +1027,11 @@
               display: flex;
               justify-content: center;
               align-items: center;
-              pointer-events: none; /* 鼠标穿透，完全不影响点击网页 */
+              pointer-events: none;
               opacity: 0;
               transition: opacity 0.3s ease;
           }
-          #custom-top-spinner-container.fade-in {
-              opacity: 1;
-          }
+          #custom-top-spinner-container.fade-in { opacity: 1; }
           .custom-top-spinner  {
               width: 50px;
               aspect-ratio: 1;
@@ -847,11 +1042,8 @@
               animation: custom-top-spinner 1s infinite linear;
             }
           .custom-top-spinner::before,.custom-top-spinner::after  {
-              content: "";
-              grid-area: 1/1;
-              margin: 2px;
-              border: inherit;
-              border-radius: 50%;
+              content: ""; grid-area: 1/1; margin: 2px;
+              border: inherit; border-radius: 50%;
             }
           .custom-top-spinner::before  {
               border-color: #f03355 #0000;
@@ -859,30 +1051,23 @@
               animation-duration: 0.5s;
               animation-direction: reverse;
             }
-          .custom-top-spinner::after  {
-              margin: 8px;
-            }
+          .custom-top-spinner::after  { margin: 8px; }
           @keyframes custom-top-spinner  {
-              100%  {
-              transform: rotate(1turn);
-            }
+              100%  { transform: rotate(1turn); }
           }
       `;
       document.head.appendChild(style);
     }
 
-    // 3. 创建 DOM 结构
     const container = document.createElement("div");
     container.id = "custom-top-spinner-container";
     container.innerHTML = `<div class="custom-top-spinner"></div>`;
     document.body.appendChild(container);
 
-    // 触发淡入动画
     requestAnimationFrame(() => {
       container.classList.add("fade-in");
     });
 
-    // 4. 返回销毁方法
     return {
       destroy: function () {
         if (container && container.parentNode) {
@@ -894,6 +1079,7 @@
       },
     };
   }
+
   // ==========================================
   // 核心嗅探与播放分流逻辑
   // ==========================================
@@ -1043,7 +1229,7 @@
       if (document.querySelector("video")) {
         initUI();
         obs.disconnect();
-        clearInterval(sniffCheck); // 停止下面的定时器
+        clearInterval(sniffCheck);
       }
     });
     domObserver.observe(document.body, { childList: true, subtree: true });
@@ -1052,10 +1238,10 @@
     sniffCheck = setInterval(() => {
       if (interceptedVideoUrls.size > 0) {
         initUI();
-        domObserver.disconnect(); // 停止 DOM 监听
-        clearInterval(sniffCheck); // 停止自己
+        domObserver.disconnect();
+        clearInterval(sniffCheck);
       }
-    }, 1000); // 1秒检查一次 Set 集合，开销极小
+    }, 1000);
   }
   // 页面加载完成后再初始化 UI，避免与网页自身 JS 冲突
   if (document.readyState === "loading") {
