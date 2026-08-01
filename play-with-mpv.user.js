@@ -408,7 +408,7 @@
     let initialCssBottom = "bottom: 60px !important;";
     let initialCssSide = "right: 5px !important;";
     if (settings.positionTop !== undefined && settings.positionTop >= 0) {
-      initialCssTop = `top: ${settings.positionTop}px !important;`;
+      initialCssTop = `top: ${settings.positionTop * 100}% !important;`;
       initialCssBottom = "";
     }
     if (currentSide === "left") {
@@ -555,7 +555,11 @@
       if (targetTop + rect.height > viewportHeight)
         targetTop = viewportHeight - rect.height;
 
-      container.style.setProperty("top", `${targetTop}px`, "important");
+      container.style.setProperty(
+        "top",
+        `${(targetTop / viewportHeight) * 100}%`,
+        "important"
+      );
       container.style.setProperty("bottom", "auto", "important");
 
       // 根据当前位置计算靠左还是靠右
@@ -580,7 +584,7 @@
       // 持久化记录停靠位置
       const s = getSettings();
       s.positionSide = currentSide;
-      s.positionTop = targetTop;
+      s.positionTop = targetTop / window.innerHeight;
       saveSettings(s);
     }
 
