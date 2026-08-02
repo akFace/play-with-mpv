@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.13
+// @version      1.1.14
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -80,7 +80,7 @@
     subTranslate: true,
     syncTime: false, // 是否同步时间
     btnSize: 40, // 按钮默认大小 (px)
-    edgeOpacity: 0.4, // 贴边隐藏透明度
+    edgeOpacity: 0.5, // 贴边隐藏透明度
     positionSide: "right", // 记录在左侧还是右侧
     positionTop: -1, // 记录垂直 Y 轴位置
     lang: getBrowserDefaultLang(), // 默认语言自适应
@@ -104,6 +104,20 @@
 
   function compress(str) {
     return btoa(String.fromCharCode(...pako.gzip(str)));
+  }
+
+  // 创建 Trusted Types 策略
+  let sanitizerPolicy;
+  try {
+    sanitizerPolicy = window.trustedTypes.createPolicy("playWithMpv", {
+      createHTML: (string) => string,
+      createScript: (input) => input,
+    });
+  } catch (error) {
+    sanitizerPolicy = {
+      createHTML: (string) => string,
+      createScript: (input) => input,
+    };
   }
 
   // 唤起 MPV 核心函数
@@ -245,6 +259,19 @@
         ".flv",
         ".mkv",
         ".webm",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".3gp",
+        ".3gp2",
+        ".ogg",
+        ".ogv",
+        ".m4s",
+        ".f4v",
+        ".acc",
+        ".rmvb",
+        ".image",
+        ".m3u",
       ];
       const fileSubtitleExtensions = [".vtt", ".srt", ".ass", ".pgs"];
 
@@ -439,7 +466,7 @@
     // 1. 齿轮设置按钮
     const setBtn = document.createElement("button");
     setBtn.id = "mpv-set-btn";
-    setBtn.innerHTML = "⚙️";
+    setBtn.innerHTML = sanitizerPolicy.createHTML("⚙️");
     setBtn.title = "点击设置，按住可拖拽位置";
     setBtn.style.cssText = `
         border: none !important;
@@ -483,7 +510,7 @@
     // --- 新增：倒计时隐藏逻辑与拖拽逻辑 ---
     let hideTimer = null;
     let isShowModel = false;
-    const HIDE_TIME_OUT = 2000;
+    const HIDE_TIME_OUT = 1500;
 
     // 拖拽相关状态
     let isDragging = false;
@@ -721,7 +748,7 @@
         color: #333 !important;
       `;
 
-    modal.innerHTML = `
+    modal.innerHTML = sanitizerPolicy.createHTML(`
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 10px;">
           <div class="mpv-modal-title" style="font-size: 15px; font-weight: bold; color: #333; display: flex; align-items: center;">
             <span id="mpv-title" style="font-size: 16px; font-weight: bold; color: #1a1a1a; display: inline-block;"></span>
@@ -812,15 +839,15 @@
             <option value="en">English</option>
           </select>
         </div>
-      `;
+      `);
 
     const style = document.createElement("style");
     style.id = "mpv-settings-modal-style";
-    style.innerHTML = `
+    style.innerHTML = sanitizerPolicy.createHTML(`
           #mpv-settings-modal input, #mpv-settings-modal select, #mpv-settings-modal button {
              -webkit-appearance: auto;
           }
-      `;
+      `);
     document.head.appendChild(style);
 
     // 将弹窗附加到 container 内，实现跟随
@@ -845,7 +872,7 @@
     function updateLanguageUI(langKey) {
       const text = I18N[langKey] || I18N["en"];
 
-      playBtn.innerHTML = text.playBtnText;
+      playBtn.innerHTML = sanitizerPolicy.createHTML(text.playBtnText);
       modal.querySelector("#mpv-title").innerText = text.panelTitle;
       modal.querySelector("#mpv-label-proxy").innerText = text.proxyToggle;
       proxyAddrInput.placeholder = text.proxyPlaceholder;
@@ -1020,7 +1047,7 @@
     if (!document.getElementById(styleId)) {
       const style = document.createElement("style");
       style.id = styleId;
-      style.innerHTML = `
+      style.innerHTML = sanitizerPolicy.createHTML(`
           #custom-top-spinner-container {
               position: fixed;
               top: 12px;
@@ -1059,13 +1086,15 @@
           @keyframes custom-top-spinner  {
               100%  { transform: rotate(1turn); }
           }
-      `;
+      `);
       document.head.appendChild(style);
     }
 
     const container = document.createElement("div");
     container.id = "custom-top-spinner-container";
-    container.innerHTML = `<div class="custom-top-spinner"></div>`;
+    container.innerHTML = sanitizerPolicy.createHTML(
+      `<div class="custom-top-spinner"></div>`
+    );
     document.body.appendChild(container);
 
     requestAnimationFrame(() => {
