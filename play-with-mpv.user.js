@@ -48,6 +48,7 @@
       subToggle: "自动下载与加载字幕",
       subTranslate: "自动翻译外语为中文 (CC)",
       langLabel: "语言 / Language",
+      supportedTips: "当前网站可能不支持 MPV 播放，确定要唤起播放器吗？",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -62,6 +63,8 @@
       subToggle: "Auto Download & Load Subs",
       subTranslate: "Auto Translate Subs to English (CC)",
       langLabel: "Language / 语言",
+      supportedTips:
+        "This site may not support MPV playback. Are you sure to open the player?",
     },
   };
 
@@ -85,6 +88,12 @@
     positionTop: -1, // 记录垂直 Y 轴位置
     lang: getBrowserDefaultLang(), // 默认语言自适应
   };
+
+  function t(key) {
+    const settings = getSettings();
+    const lang = settings.lang || getBrowserDefaultLang();
+    return I18N[lang][key] || I18N["en"][key] || key;
+  }
 
   // 使用 GM_getValue 实现跨域全局配置读取
   function getSettings() {
@@ -1211,10 +1220,13 @@
         } else {
           if (TIME_OUT <= 0) {
             console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
-            media.video = window.location.href;
-            clearInterval(loopTimer);
-            openMpv(media);
+            var userResponse = confirm(t(`supportedTips`));
+            if (userResponse) {
+              media.video = window.location.href;
+              openMpv(media);
+            }
             loadingInstance.destroy();
+            clearInterval(loopTimer);
           } else {
             loopLoadInterceptedVideoUrls();
           }
