@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.14
+// @version      1.1.15
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -1251,15 +1251,26 @@
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
   function initWhenReady() {
     initSetIframe();
-    // 1. 如果有 video 标签，直接显示
-    if (document.querySelector("video")) {
+    const checkVideoBig = () => {
+      const video = getBestVideo();
+      const offsetHeight = video ? video.offsetHeight : 0;
+      const screenHeight = window.screen.height;
+      const videoPercent = (offsetHeight / screenHeight) * 100;
+      // 视频高度占屏幕高度超过 25% 就显示按钮
+      if (videoPercent >= 25) {
+        return true;
+      }
+    };
+
+    // 1. 如果有 video 标签，并且视频高度占屏幕高度超过 25%，直接初始化 UI
+    if (checkVideoBig()) {
       initUI();
       return;
     }
     let sniffCheck = null;
     // 2. 如果暂时没有 video，监听 DOM 变化
     const domObserver = new MutationObserver((mutations, obs) => {
-      if (document.querySelector("video")) {
+      if (checkVideoBig()) {
         initUI();
         obs.disconnect();
         clearInterval(sniffCheck);
@@ -1269,7 +1280,11 @@
 
     // 3. 同时：如果网页没有 video，但拦截器嗅探到了流，也强制把按钮显示出来
     sniffCheck = setInterval(() => {
-      if (interceptedVideoUrls.size > 0) {
+      const video = document.querySelector("video");
+      if (
+        (video && checkVideoBig()) ||
+        (!video && interceptedVideoUrls.size > 0)
+      ) {
         initUI();
         domObserver.disconnect();
         clearInterval(sniffCheck);
