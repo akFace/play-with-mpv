@@ -40,7 +40,7 @@
 
 ### 预览
 
-![image](https://github.com/akFace/picx-images-hosting/raw/master/Tools/Snipaste_2026-07-16_17-37-57.1ziyeqyi5c.webp)
+![image](https://raw.githubusercontent.com/akFace/play-with-mpv/refs/heads/main/images/Snipaste_2026-07-16_17-37-57.jpg)
 
 ### 更新导出 yt-dlp 支持的网站（开发用）
 
