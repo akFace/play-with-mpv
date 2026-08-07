@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.15
+// @version      1.1.16
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -10,6 +10,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @run-at       document-end
+// @grant        GM_registerMenuCommand
 // @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/play-with-mpv/raw/main/static/yt_dlp_supported_sites.json
 // @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
@@ -28,7 +29,7 @@
     yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
   }
   // 排除来自yt-dlp 支持的网站，直接使用插件解析方式
-  const excludeYtDlpSiteKeyWord = ["xiaohongshu.com", "douyin.com"];
+  const useScriptPars = ["xiaohongshu.com", "douyin.com", "v.qq.com"];
   // 用于保存嗅探到的真实视频源地址
   let interceptedVideoUrls = new Set();
   let interceptedSubtitleUrls = new Set(); // 新增：存储嗅探到的字幕
@@ -48,7 +49,9 @@
       subToggle: "自动下载与加载字幕",
       subTranslate: "自动翻译外语为中文 (CC)",
       langLabel: "语言 / Language",
-      supportedTips: "当前网站可能不支持 MPV 播放，确定要唤起播放器吗？",
+      supportedTips:
+        "未检测到视频或该页面可能不支持 MPV 播放，确定要唤起播放器吗？",
+      handleShowPlayButton: "显示播放按钮",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -64,7 +67,8 @@
       subTranslate: "Auto Translate Subs to English (CC)",
       langLabel: "Language / 语言",
       supportedTips:
-        "This site may not support MPV playback. Are you sure to open the player?",
+        "No video detected or this site may not support MPV playback. Are you sure to open the player?",
+      handleShowPlayButton: "Show play button",
     },
   };
 
@@ -331,7 +335,7 @@
           }
           if (!shouldExclude) {
             interceptedVideoUrls.add(urlObj.href);
-            console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
+            // console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
           }
         }
 
@@ -344,15 +348,6 @@
   }
 
   interceptedVideo();
-
-  const unwatch = watchUrlChange((newUrl) => {
-    console.log("检测到 URL 发生变化:", newUrl);
-    interceptedVideoUrls.clear();
-    interceptedSubtitleUrls.clear();
-  });
-
-  // 如果不需要时，可以调用它来取消监听
-  // unwatch();
 
   // 从上层页面接收数据到iframe，主要是视频源、标题、来源等信息
   let mediaData = null;
@@ -429,8 +424,9 @@
   // ==========================================
   // UI 渲染与样式美化
   // ==========================================
+  let showContainer = null;
   function initUI() {
-    if (document.getElementById("mpv-control-container")) return;
+    if (document.getElementById("mpv-control-container")) return; // 避免重复创建
 
     const settings = getSettings();
     let currentSide = settings.positionSide || "right";
@@ -545,7 +541,7 @@
       }
     };
 
-    const showContainer = () => {
+    showContainer = () => {
       container.style.setProperty("opacity", "1", "important");
       container.style.setProperty(
         "transform",
@@ -1165,12 +1161,10 @@
         hostname.includes(site.toLowerCase().split(":")[0])
       );
 
-    const isExcludeYtDlpSiteKeyWord = excludeYtDlpSiteKeyWord.some((site) =>
-      href.includes(site)
-    );
+    const isUseScriptPars = useScriptPars.some((site) => href.includes(site));
     console.log("is_yt_dlp_supported_sites:", is_yt_dlp_supported_sites);
     if (
-      !isExcludeYtDlpSiteKeyWord &&
+      !isUseScriptPars &&
       (hostname.includes("bilibili.com") ||
         hostname.includes("youtube.com") ||
         hostname.includes("youtu.be") ||
@@ -1261,52 +1255,75 @@
   }
 
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
-  function initWhenReady() {
-    initSetIframe();
-    const checkVideoBig = () => {
-      const video = getBestVideo();
-      const offsetHeight = video ? video.offsetHeight : 0;
-      const screenHeight = window.screen.height;
-      const videoPercent = (offsetHeight / screenHeight) * 100;
-      // 视频高度占屏幕高度超过 25% 就显示按钮
-      if (videoPercent >= 25) {
-        return true;
-      }
+  async function initWhenReady() {
+    if (document.getElementById("mpv-control-container")) return;
+    const checkVideoBig = async () => {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          const video = getBestVideo();
+          const offsetHeight = video ? video.offsetHeight : 0;
+          const screenHeight = window.screen.height;
+          const videoPercent = (offsetHeight / screenHeight) * 100;
+          const href = window.location.href;
+          const isUseScriptPars = useScriptPars.some((site) =>
+            href.includes(site)
+          );
+          const hasVideoUrl = interceptedVideoUrls.size > 0;
+          // 视频高度占屏幕高度超过 23% 就显示按钮
+          if (
+            videoPercent >= 23 ||
+            (video && isUseScriptPars) ||
+            (hasVideoUrl && isUseScriptPars)
+          ) {
+            clearTimeout(timer);
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        }, 2500);
+      });
     };
 
-    // 1. 如果有 video 标签，并且视频高度占屏幕高度超过 25%，直接初始化 UI
-    if (checkVideoBig()) {
+    // 1. 如果有 video 标签，并且视频高度占屏幕高度超过 23%，直接初始化 UI
+    if (await checkVideoBig()) {
       initUI();
       return;
     }
-    let sniffCheck = null;
     // 2. 如果暂时没有 video，监听 DOM 变化
-    const domObserver = new MutationObserver((mutations, obs) => {
-      if (checkVideoBig()) {
+    const domObserver = new MutationObserver(async (mutations, obs) => {
+      if (await checkVideoBig()) {
         initUI();
         obs.disconnect();
-        clearInterval(sniffCheck);
       }
     });
-    domObserver.observe(document.body, { childList: true, subtree: true });
-
-    // 3. 同时：如果网页没有 video，但拦截器嗅探到了流，也强制把按钮显示出来
-    sniffCheck = setInterval(() => {
-      const video = document.querySelector("video");
-      if (
-        (video && checkVideoBig()) ||
-        (!video && interceptedVideoUrls.size > 0)
-      ) {
-        initUI();
-        domObserver.disconnect();
-        clearInterval(sniffCheck);
-      }
-    }, 1000);
+    domObserver.observe(document.body, { childList: true, subtree: false });
   }
   // 页面加载完成后再初始化 UI，避免与网页自身 JS 冲突
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initWhenReady);
+    document.addEventListener("DOMContentLoaded", () => {
+      initSetIframe();
+      initWhenReady();
+    });
   } else {
+    initSetIframe();
     initWhenReady();
   }
+
+  const unwatch = watchUrlChange((newUrl) => {
+    console.log("检测到 URL 发生变化:", newUrl);
+    interceptedVideoUrls.clear();
+    interceptedSubtitleUrls.clear();
+    initWhenReady();
+  });
+
+  // 如果不需要时，可以调用它来取消监听
+  // unwatch();
+  // 添加菜单命令，允许用户手动显示播放按钮
+  // GM_registerMenuCommand(t("handleShowPlayButton"), () => {
+  //   if (showContainer) {
+  //     showContainer();
+  //   } else {
+  //     initUI();
+  //   }
+  // });
 })();
