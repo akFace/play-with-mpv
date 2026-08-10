@@ -757,9 +757,7 @@
 
     container.appendChild(setBtn);
     container.appendChild(playBtn);
-
-    // 3. 设置弹窗
-    // 3. 设置弹窗
+    // 设置弹窗
     const modal = document.createElement("div");
     modal.id = "mpv-settings-modal";
     modal.style.cssText = `
@@ -810,7 +808,7 @@
       <!-- 内容滚动区 (采用左右双列网格布局) -->
       <div style="padding: 16px 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;">
         
-        <!-- 代理设置 (占 1 列，放在第一行) -->
+        <!-- 代理设置 -->
         <div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <label id="mpv-label-proxy" style="font-size: 13px; font-weight: 600; color: #333;"></label>
@@ -822,7 +820,7 @@
           " />
         </div>
 
-        <!-- 字幕设置 (占 1 列，与代理设置合并为第一行) -->
+        <!-- 字幕设置 -->
         <div style="display: flex; flex-direction: column; justify-content: space-between;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label id="mpv-label-sub" style="font-size: 13px; font-weight: 600; color: #333;"></label>
@@ -834,7 +832,7 @@
           </div>
         </div>
 
-        <!-- 播放时间同步 (单独占满整行) -->
+        <!-- 播放时间同步 -->
         <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02); padding: 8px 12px; border-radius: 10px;">
           <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
           <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
@@ -892,7 +890,7 @@
           ">
         </div>
 
-        <!-- 插件解析方式设置 (占满两列) -->
+        <!-- 插件解析方式设置 -->
         <div style="grid-column: span 2;">
           <label id="mpv-label-script-pars" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <textarea id="mpv-script-pars-input" rows="2" placeholder="" style="
@@ -901,7 +899,7 @@
           "></textarea>
         </div>
 
-        <!-- 语言选择 (单独占满最后一行) -->
+        <!-- 语言选择 -->
         <div style="grid-column: span 2;">
           <label id="mpv-label-lang" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <select id="mpv-lang-select" style="
@@ -929,9 +927,9 @@
       `);
     document.head.appendChild(style);
 
-    // 将弹窗附加到 container 内，实现跟随
+    // 将弹窗附加到 body 内
     document.body.appendChild(modal);
-    // 最后将包含弹窗的 container 一并附加到 body
+
     document.body.appendChild(container);
 
     const proxyToggle = modal.querySelector("#mpv-proxy-toggle");
