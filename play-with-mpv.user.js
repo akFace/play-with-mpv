@@ -28,8 +28,8 @@
   if (jsonDataYtDlp) {
     yt_dlp_supported_sites = JSON.parse(jsonDataYtDlp);
   }
-  // 排除来自yt-dlp 支持的网站，直接使用插件解析方式
-  const useScriptPars = ["xiaohongshu.com", "douyin.com", "v.qq.com"];
+  // 已知需要排除来自yt-dlp 支持的网站，直接使用插件解析方式
+  const mainScriptPars = ["xiaohongshu.com", "douyin.com"];
   // 用于保存嗅探到的真实视频源地址
   let interceptedVideoUrls = new Set();
   let interceptedSubtitleUrls = new Set(); // 新增：存储嗅探到的字幕
@@ -55,6 +55,9 @@
       // 在 I18N 的 zh 中增加
       codecLabel: "首选视频编码格式",
       codecNoLimit: "不限编码 (默认)",
+      scriptParsLabel: "插件解析站点（可选）",
+      scriptParsPlaceholder:
+        "请输入站点(例: youtube.com)，每行一个\n脚本默认先读取yt_dlp支持的网站，不支持会自动调用插件解析，设置此处站点可跳过读取yt_dlp直接插件解析...",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -75,6 +78,9 @@
       // 在 I18N 的 en 中增加
       codecLabel: "Preferred Video Codec Format",
       codecNoLimit: "No Limit (Default)",
+      scriptParsLabel: "Script Parsing Site (Optional)",
+      scriptParsPlaceholder:
+        "Enter parsing sites (e.g. youtube.com), one per line (separated by Enter)...",
     },
   };
 
@@ -99,6 +105,7 @@
     lang: getBrowserDefaultLang(), // 默认语言自适应
     // 在 DEFAULT_SETTINGS 中增加
     codec: "", // 默认不限制编码
+    useScriptPars: "", // 默认插件解析方式
   };
 
   function t(key) {
@@ -423,7 +430,7 @@
 
   // 初始化 iframe 设置和消息监听
   function initSetIframe() {
-    // 监听页面消息，接收iframe传来的数据
+    // 监听页面消息，上层传到 iframe 的数据
     handleIframeMessage();
     setTimeout(() => {
       const iframes = document.querySelectorAll("iframe");
@@ -433,6 +440,8 @@
             title: document.title,
             origin: window.location.origin,
             referrer: window.location.origin + window.location.pathname,
+            href: window.location.href,
+            hostname: window.location.hostname,
           };
           initSendIframeMessage(frame, data);
           // 针对iframe的沙箱属性进行修改，允许跨域访问和脚本执行
@@ -750,65 +759,93 @@
     container.appendChild(playBtn);
 
     // 3. 设置弹窗
+    // 3. 设置弹窗
     const modal = document.createElement("div");
     modal.id = "mpv-settings-modal";
     modal.style.cssText = `
-        position: absolute !important;
-        bottom: calc(100% + 15px) !important;
-        right: 5px !important;
-        cursor: default !important;
-        z-index: 2147483647 !important;
-        width: 320px !important;
-        max-height: 80vh !important;
-        overflow-y: auto !important;
-        background: rgba(255, 255, 255, 0.85) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.4) !important;
-        border-radius: 20px !important;
-        box-shadow: 0 10px 35px rgba(0,0,0,0.2) !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        padding: 20px !important;
-        display: none;
-        flex-direction: column !important;
-        gap: 10px !important;
-        transition: all 0.3s ease !important;
-        opacity: 0;
-        transform: translateY(15px) scale(0.95);
-        box-sizing: border-box !important;
-        color: #333 !important;
-      `;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.95);
+      width: 480px;
+      max-height: 85vh;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+      z-index: 999999;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    `;
 
     modal.innerHTML = sanitizerPolicy.createHTML(`
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 10px;">
-          <div class="mpv-modal-title" style="font-size: 15px; font-weight: bold; color: #333; display: flex; align-items: center;">
-            <span id="mpv-title" style="font-size: 16px; font-weight: bold; color: #1a1a1a; display: inline-block;"></span>
-            <a style="font-size: 14px; color: #ff0055; text-decoration: none;display: flex; align-items: center; margin-left: 5px;" target="_blank" title="GitHub" href="https://github.com/akFace/play-with-mpv">
-              <svg t="1731923678389" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5894" width="20" height="20">
-                        <path d="M20.48 503.72608c0 214.4256 137.4208 396.73856 328.94976 463.6672 25.8048 6.5536 21.87264-11.8784 21.87264-24.33024v-85.07392c-148.93056 17.44896-154.86976-81.1008-164.94592-97.52576-20.23424-34.52928-67.91168-43.33568-53.69856-59.76064 33.91488-17.44896 68.48512 4.42368 108.46208 63.61088 28.95872 42.88512 85.44256 35.6352 114.15552 28.4672a138.8544 138.8544 0 0 1 38.0928-66.7648c-154.25536-27.60704-218.60352-121.77408-218.60352-233.79968 0-54.31296 17.94048-104.2432 53.0432-144.54784-22.36416-66.43712 2.08896-123.24864 5.3248-131.6864 63.81568-5.7344 130.00704 45.6704 135.168 49.68448 36.2496-9.78944 77.57824-14.9504 123.82208-14.9504 46.4896 0 88.064 5.3248 124.5184 15.23712 12.288-9.4208 73.80992-53.53472 133.12-48.128 3.15392 8.43776 27.0336 63.93856 6.02112 129.4336 35.59424 40.38656 53.69856 90.76736 53.69856 145.24416 0 112.18944-64.7168 206.4384-219.42272 233.71776a140.0832 140.0832 0 0 1 41.7792 99.9424v123.4944c0.86016 9.87136 0 19.6608 16.50688 19.6608 194.31424-65.49504 334.2336-249.15968 334.2336-465.5104C1002.57792 232.48896 782.66368 12.77952 511.5904 12.77952 240.18944 12.65664 20.48 232.40704 20.48 503.72608z" fill="#000000" opacity=".65" p-id="5895"></path>
-                    </svg></a>
-          </div>
-          <span id="mpv-close-modal" style="cursor:pointer; font-size: 18px; color:#888; font-weight:bold; transition:color 0.2s;">&times;</span>
+      <!-- 顶部标题栏 -->
+      <div style="
+        display: flex; align-items: center; justify-content: space-between; 
+        padding: 14px 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      ">
+        <div class="mpv-modal-title" style="font-size: 15px; font-weight: bold; color: #333; display: flex; align-items: center;">
+          <span id="mpv-title" style="font-size: 16px; font-weight: bold; color: #1a1a1a; display: inline-block;"></span>
+          <a style="font-size: 14px; color: #ff0055; text-decoration: none;display: flex; align-items: center; margin-left: 5px;" target="_blank" title="GitHub" href="https://github.com/akFace/play-with-mpv">
+            <svg t="1731923678389" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5894" width="20" height="20">
+              <path d="M20.48 503.72608c0 214.4256 137.4208 396.73856 328.94976 463.6672 25.8048 6.5536 21.87264-11.8784 21.87264-24.33024v-85.07392c-148.93056 17.44896-154.86976-81.1008-164.94592-97.52576-20.23424-34.52928-67.91168-43.33568-53.69856-59.76064 33.91488-17.44896 68.48512 4.42368 108.46208 63.61088 28.95872 42.88512 85.44256 35.6352 114.15552 28.4672a138.8544 138.8544 0 0 1 38.0928-66.7648c-154.25536-27.60704-218.60352-121.77408-218.60352-233.79968 0-54.31296 17.94048-104.2432 53.0432-144.54784-22.36416-66.43712 2.08896-123.24864 5.3248-131.6864 63.81568-5.7344 130.00704 45.6704 135.168 49.68448 36.2496-9.78944 77.57824-14.9504 123.82208-14.9504 46.4896 0 88.064 5.3248 124.5184 15.23712 12.288-9.4208 73.80992-53.53472 133.12-48.128 3.15392 8.43776 27.0336 63.93856 6.02112 129.4336 35.59424 40.38656 53.69856 90.76736 53.69856 145.24416 0 112.18944-64.7168 206.4384-219.42272 233.71776a140.0832 140.0832 0 0 1 41.7792 99.9424v123.4944c0.86016 9.87136 0 19.6608 16.50688 19.6608 194.31424-65.49504 334.2336-249.15968 334.2336-465.5104C1002.57792 232.48896 782.66368 12.77952 511.5904 12.77952 240.18944 12.65664 20.48 232.40704 20.48 503.72608z" fill="#000000" opacity=".65" p-id="5895"></path>
+            </svg>
+          </a>
         </div>
+        <button id="mpv-close-modal" style="
+          background: rgba(0, 0, 0, 0.04); border: none; width: 28px; height: 28px; 
+          border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+          font-size: 14px; color: #666; transition: background 0.2s;
+        ">✕</button>
+      </div>
+
+      <!-- 内容滚动区 (采用左右双列网格布局) -->
+      <div style="padding: 16px 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;">
         
-        <!-- 代理设置 -->
+        <!-- 代理设置 (占 1 列，放在第一行) -->
         <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <label id="mpv-label-proxy" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055; color: #333;display: block;">
+            <input type="checkbox" id="mpv-proxy-toggle" style="cursor: pointer; width: 32px; height: 16px; accent-color: #ff0055;">
           </div>
           <input type="text" id="mpv-proxy-addr" style="
-            width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; transition: border-color 0.2s; box-sizing: border-box; color: #333; 
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; 
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; box-sizing: border-box; color: #333; 
           " />
         </div>
-  
+
+        <!-- 字幕设置 (占 1 列，与代理设置合并为第一行) -->
+        <div style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label id="mpv-label-sub" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+            <input type="checkbox" id="mpv-sub-toggle" style="cursor: pointer; width: 32px; height: 16px; accent-color: #ff0055;">
+          </div>
+          <div id="mpv-translate-wrap" style="display: flex; justify-content: space-between; align-items: center; padding-left: 2px; transition: opacity 0.2s;">
+            <label id="mpv-label-translate" style="font-size: 11px; color: #666;"></label>
+            <input type="checkbox" id="mpv-translate-toggle" style="cursor: pointer; width: 28px; height: 14px; accent-color: #ff0055;">
+          </div>
+        </div>
+
+        <!-- 播放时间同步 (单独占满整行) -->
+        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02); padding: 8px 12px; border-radius: 10px;">
+          <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+          <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+        </div>
+        
         <!-- 画质设置 -->
         <div>
-          <label id="mpv-label-quality" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
+          <label id="mpv-label-quality" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <select id="mpv-quality-select" style="
-            width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; 
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
           ">
             <option value="2160">4K Ultra HD (2160p)</option>
             <option value="1440">2K Quad HD (1440p)</option>
@@ -820,10 +857,10 @@
 
         <!-- 编码格式设置 -->
         <div>
-          <label id="mpv-label-codec" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
+          <label id="mpv-label-codec" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <select id="mpv-codec-select" style="
-            width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; 
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
           ">
             <option value="" id="mpv-codec-unlimit"></option>
             <option value="hevc">HEVC (H.265)</option>
@@ -832,72 +869,68 @@
             <option value="vp9">VP9</option>
           </select>
         </div>
-  
-        <!-- 播放时间与大小控制 -->
-        <div style="border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;display: block;">
-          </div>
           
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <label id="mpv-label-size" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-              <span id="mpv-size-val" style="font-size: 11px; color: #ff0055; font-weight: bold;">44px</span>
-            </div>
-            <input type="range" id="mpv-size-slider" min="20" max="60" step="1" style="
-              width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
-            ">
+        <!-- 按钮尺寸调节 -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label id="mpv-label-size" style="font-size: 12px; font-weight: 600; color: #333;"></label>
+            <span id="mpv-size-val" style="font-size: 11px; color: #ff0055; font-weight: bold;">44px</span>
           </div>
+          <input type="range" id="mpv-size-slider" min="20" max="60" step="1" style="
+            width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
+          ">
+        </div>
 
-          <!-- 新增透明度调节 -->
-          <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <label id="mpv-label-opacity" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-              <span id="mpv-opacity-val" style="font-size: 11px; color: #ff0055; font-weight: bold;">0.4</span>
-            </div>
-            <input type="range" id="mpv-opacity-slider" min="0" max="1" step="0.1" style="
-              width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
-            ">
+        <!-- 贴边隐藏透明度 -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label id="mpv-label-opacity" style="font-size: 12px; font-weight: 600; color: #333;"></label>
+            <span id="mpv-opacity-val" style="font-size: 11px; color: #ff0055; font-weight: bold;">0.4</span>
           </div>
+          <input type="range" id="mpv-opacity-slider" min="0" max="1" step="0.1" style="
+            width: 100%; accent-color: #ff0055; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; outline: none; cursor: pointer;
+          ">
         </div>
-  
-        <!-- 字幕设置 -->
-        <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label id="mpv-label-sub" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-            <input type="checkbox" id="mpv-sub-toggle" style="cursor: pointer; width: 38px; height: 18px; accent-color: #ff0055;display: block;">
-          </div>
-          <div id="mpv-translate-wrap" style="display: flex; justify-content: space-between; align-items: center; padding-left: 10px; transition: opacity 0.2s;">
-            <label id="mpv-label-translate" style="font-size: 12px; color: #666;"></label>
-            <input type="checkbox" id="mpv-translate-toggle" style="cursor: pointer; width: 34px; height: 18px; accent-color: #ff0055;display: block;">
-          </div>
+
+        <!-- 插件解析方式设置 (占满两列) -->
+        <div style="grid-column: span 2;">
+          <label id="mpv-label-script-pars" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
+          <textarea id="mpv-script-pars-input" rows="2" placeholder="" style="
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; min-height: 80px;
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; box-sizing: border-box; color: #333; resize: vertical;
+          "></textarea>
         </div>
-  
-        <!-- 语言选择 -->
-        <div style="border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px;">
-          <label id="mpv-label-lang" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
+
+        <!-- 语言选择 (单独占满最后一行) -->
+        <div style="grid-column: span 2;">
+          <label id="mpv-label-lang" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <select id="mpv-lang-select" style="
-            width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; 
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
           ">
             <option value="zh">简体中文</option>
             <option value="en">English</option>
           </select>
         </div>
-      `);
+
+      </div>
+    `);
 
     const style = document.createElement("style");
     style.id = "mpv-settings-modal-style";
     style.innerHTML = sanitizerPolicy.createHTML(`
-          #mpv-settings-modal input, #mpv-settings-modal select, #mpv-settings-modal button {
-             -webkit-appearance: auto;
+          #mpv-settings-modal input, #mpv-settings-modal select, #mpv-settings-modal button, #mpv-settings-modal textarea {
+             -webkit-appearance: auto !important;
+          }
+          #mpv-settings-modal input:before, #mpv-settings-modal select:before, #mpv-settings-modal button:before, #mpv-settings-modal textarea:before, #mpv-settings-modal input:after, #mpv-settings-modal select:after, #mpv-settings-modal button:after, #mpv-settings-modal textarea:after {
+            -webkit-appearance: auto !important;
+            content: normal !important;
           }
       `);
     document.head.appendChild(style);
 
     // 将弹窗附加到 container 内，实现跟随
-    container.appendChild(modal);
+    document.body.appendChild(modal);
     // 最后将包含弹窗的 container 一并附加到 body
     document.body.appendChild(container);
 
@@ -915,6 +948,7 @@
     const langSelect = modal.querySelector("#mpv-lang-select");
     const closeBtn = modal.querySelector("#mpv-close-modal");
     const codecSelect = modal.querySelector("#mpv-codec-select");
+    const scriptParsInput = modal.querySelector("#mpv-script-pars-input");
 
     function updateLanguageUI(langKey) {
       const text = I18N[langKey] || I18N["en"];
@@ -933,6 +967,9 @@
       modal.querySelector("#mpv-label-lang").innerText = text.langLabel;
       modal.querySelector("#mpv-label-codec").innerText = text.codecLabel;
       modal.querySelector("#mpv-codec-unlimit").innerText = text.codecNoLimit;
+      modal.querySelector("#mpv-label-script-pars").innerText =
+        text.scriptParsLabel;
+      scriptParsInput.placeholder = text.scriptParsPlaceholder;
     }
 
     function loadUiFromSettings() {
@@ -960,6 +997,9 @@
       translateToggle.disabled = !s.subEnabled;
       translateWrap.style.opacity = s.subEnabled ? "1" : "0.4";
       codecSelect.value = s.codec || "";
+      scriptParsInput.value = Array.isArray(s.useScriptPars)
+        ? s.useScriptPars.join("\n")
+        : s.useScriptPars || "";
 
       updateButtonSizes(s.btnSize);
     }
@@ -982,6 +1022,10 @@
       s.subTranslate = translateToggle.checked;
       s.lang = selectedLang;
       s.codec = codecSelect.value;
+      s.useScriptPars = scriptParsInput.value
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean);
 
       saveSettings(s);
 
@@ -1013,61 +1057,42 @@
       subToggle,
       translateToggle,
       langSelect,
+      scriptParsInput,
     ].forEach((el) => {
       el.addEventListener("change", updateAndSave);
+      if (el.tagName === "TEXTAREA") {
+        el.addEventListener("blur", updateAndSave);
+      }
     });
     proxyAddrInput.addEventListener("input", updateAndSave);
     sizeSlider.addEventListener("input", updateAndSave);
     opacitySlider.addEventListener("input", updateAndSave);
 
     function showModal() {
-      // --- 新增：根据当前按钮位置动态调整弹窗弹出方向，防止溢出屏幕 ---
-      const rect = container.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      if (rect.top < viewportHeight / 2) {
-        modal.style.setProperty("top", "calc(100% + 15px)", "important");
-        modal.style.setProperty("bottom", "auto", "important");
-      } else {
-        modal.style.setProperty("bottom", "calc(100% + 15px)", "important");
-        modal.style.setProperty("top", "auto", "important");
-      }
-
-      if (rect.left < viewportWidth / 2) {
-        modal.style.setProperty("left", "5px", "important");
-        modal.style.setProperty("right", "auto", "important");
-      } else {
-        modal.style.setProperty("right", "5px", "important");
-        modal.style.setProperty("left", "auto", "important");
-      }
-      // -------------------------------------------------------------
+      modal.style.visibility = "visible";
+      modal.style.opacity = "1";
+      modal.style.transform = "translate(-50%, -50%) scale(1)";
 
       showContainer();
       isShowModel = true;
       loadUiFromSettings();
-      modal.style.display = "flex";
-      setTimeout(() => {
-        modal.style.opacity = "1";
-        modal.style.transform = "translateY(0px) scale(1)";
-      }, 10);
     }
 
     function hideModal() {
       modal.style.opacity = "0";
-      modal.style.transform = "translateY(15px) scale(0.95)";
+      modal.style.transform = "translate(-50%, -50%) scale(0.95)";
+      setTimeout(() => {
+        modal.style.visibility = "hidden";
+      }, 250); // 与 CSS transition 时间保持一致
       startHideTimer();
       isShowModel = false;
-      setTimeout(() => {
-        modal.style.display = "none";
-      }, 300);
     }
 
     setBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (isDragging) return; // 拦截被判定为拖拽完成时的点击触发
 
-      if (modal.style.display === "none" || modal.style.opacity === "0") {
+      if (modal.style.visibility === "hidden" || modal.style.opacity === "0") {
         showModal();
       } else {
         hideModal();
@@ -1169,13 +1194,14 @@
   // 核心嗅探与播放分流逻辑
   // ==========================================
   async function handleMpvPlay() {
-    const hostname = window.location.hostname;
-    const href = window.location.href;
-    let title = mediaData && mediaData.title ? mediaData.title : document.title;
-    const origin = (mediaData && mediaData.origin) || window.location.origin;
+    let useScriptPars = getSettings()?.useScriptPars || [];
+    useScriptPars = useScriptPars.concat(mainScriptPars);
+    const hostname = mediaData?.hostname || window.location.hostname;
+    const href = mediaData?.href || window.location.href;
+    let title = mediaData?.title || document.title;
+    const origin = mediaData?.origin || window.location.origin;
     const referrer =
-      (mediaData && mediaData.referrer) ||
-      window.location.origin + window.location.pathname;
+      mediaData?.referrer || window.location.origin + window.location.pathname;
     let media = {
       video: null,
       title: title,
@@ -1217,7 +1243,7 @@
         hostname.includes("youtu.be") ||
         is_yt_dlp_supported_sites)
     ) {
-      media.video = window.location.href;
+      media.video = href;
       openMpv(media);
       return;
     }
@@ -1263,7 +1289,7 @@
             console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
             var userResponse = confirm(t(`supportedTips`));
             if (userResponse) {
-              media.video = window.location.href;
+              media.video = href;
               openMpv(media);
             }
             loadingInstance.destroy();
@@ -1304,6 +1330,7 @@
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
   async function initWhenReady() {
     if (document.getElementById("mpv-control-container")) return;
+    const useScriptPars = getSettings()?.useScriptPars;
     const checkVideoBig = async () => {
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
@@ -1312,7 +1339,7 @@
           const screenHeight = window.screen.height;
           const videoPercent = (offsetHeight / screenHeight) * 100;
           const href = window.location.href;
-          const isUseScriptPars = useScriptPars.some((site) =>
+          const isUseScriptPars = useScriptPars?.some((site) =>
             href.includes(site)
           );
           const hasVideoUrl = interceptedVideoUrls.size > 0;
