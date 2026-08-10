@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.16
+// @version      1.1.17
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -52,6 +52,9 @@
       supportedTips:
         "未检测到视频或该页面可能不支持 MPV 播放，确定要唤起播放器吗？",
       handleShowPlayButton: "显示播放按钮",
+      // 在 I18N 的 zh 中增加
+      codecLabel: "首选视频编码格式",
+      codecNoLimit: "不限编码 (默认)",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -69,6 +72,9 @@
       supportedTips:
         "No video detected or this site may not support MPV playback. Are you sure to open the player?",
       handleShowPlayButton: "Show play button",
+      // 在 I18N 的 en 中增加
+      codecLabel: "Preferred Video Codec Format",
+      codecNoLimit: "No Limit (Default)",
     },
   };
 
@@ -91,6 +97,8 @@
     positionSide: "right", // 记录在左侧还是右侧
     positionTop: -1, // 记录垂直 Y 轴位置
     lang: getBrowserDefaultLang(), // 默认语言自适应
+    // 在 DEFAULT_SETTINGS 中增加
+    codec: "", // 默认不限制编码
   };
 
   function t(key) {
@@ -144,10 +152,28 @@
       settings.proxyEnabled && settings.networkProxy
         ? `--http-proxy="${settings.networkProxy}"`
         : "";
+    // 根据用户设置的分辨率和编码格式生成 yt-dlp 的格式参数
+    const qualityArg = (() => {
+      let resLimit = settings.quality ? `[height<=${settings.quality}]` : "";
 
-    const qualityArg = settings.quality
-      ? `--ytdl-format="bestvideo[height<=${settings.quality}]+bestaudio/best"`
-      : "";
+      if (settings.codec) {
+        if (settings.codec === "hevc") {
+          // B站的 HEVC 格式可能是 hev1 或 hvc1，用 / 分隔代表“优先尝试 hev1，不行则尝试 hvc1”
+          const hevcFormat = `bestvideo${resLimit}[vcodec^=hev1]+bestaudio/bestvideo${resLimit}[vcodec^=hvc1]+bestaudio`;
+          return `--ytdl-format="${hevcFormat}/bestvideo+bestaudio/best"`;
+        } else {
+          // 其他编码（如 av1, vp9, avc 等）保持正常逻辑
+          const userFormat = `bestvideo${resLimit}[vcodec^=${settings.codec}]+bestaudio`;
+          return `--ytdl-format="${userFormat}/bestvideo+bestaudio/best"`;
+        }
+      }
+
+      if (settings.quality) {
+        return `--ytdl-format="bestvideo${resLimit}+bestaudio/bestvideo+bestaudio/best"`;
+      }
+
+      return `--ytdl-format="bestvideo+bestaudio/best"`;
+    })();
 
     const startTimeArg =
       settings.syncTime && media.time ? `--start="${media.time}"` : "";
@@ -745,7 +771,7 @@
         padding: 20px !important;
         display: none;
         flex-direction: column !important;
-        gap: 15px !important;
+        gap: 10px !important;
         transition: all 0.3s ease !important;
         opacity: 0;
         transform: translateY(15px) scale(0.95);
@@ -789,6 +815,21 @@
             <option value="1080">Full HD (1080p)</option>
             <option value="720">HD (720p)</option>
             <option value="" id="mpv-quality-unlimit"></option>
+          </select>
+        </div>
+
+        <!-- 编码格式设置 -->
+        <div>
+          <label id="mpv-label-codec" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 6px;"></label>
+          <select id="mpv-codec-select" style="
+            width: 100%; padding: 8px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; 
+            font-size: 13px; background: rgba(255,255,255,0.7); outline: none; cursor: pointer; box-sizing: border-box; color: #333;
+          ">
+            <option value="" id="mpv-codec-unlimit"></option>
+            <option value="hevc">HEVC (H.265)</option>
+            <option value="avc1">AVC (H.264)</option>
+            <option value="av01">AV1</option>
+            <option value="vp9">VP9</option>
           </select>
         </div>
   
@@ -873,6 +914,7 @@
     const translateWrap = modal.querySelector("#mpv-translate-wrap");
     const langSelect = modal.querySelector("#mpv-lang-select");
     const closeBtn = modal.querySelector("#mpv-close-modal");
+    const codecSelect = modal.querySelector("#mpv-codec-select");
 
     function updateLanguageUI(langKey) {
       const text = I18N[langKey] || I18N["en"];
@@ -889,6 +931,8 @@
       modal.querySelector("#mpv-label-sub").innerText = text.subToggle;
       modal.querySelector("#mpv-label-translate").innerText = text.subTranslate;
       modal.querySelector("#mpv-label-lang").innerText = text.langLabel;
+      modal.querySelector("#mpv-label-codec").innerText = text.codecLabel;
+      modal.querySelector("#mpv-codec-unlimit").innerText = text.codecNoLimit;
     }
 
     function loadUiFromSettings() {
@@ -915,6 +959,7 @@
       translateToggle.checked = s.subTranslate;
       translateToggle.disabled = !s.subEnabled;
       translateWrap.style.opacity = s.subEnabled ? "1" : "0.4";
+      codecSelect.value = s.codec || "";
 
       updateButtonSizes(s.btnSize);
     }
@@ -936,6 +981,7 @@
       s.subEnabled = subToggle.checked;
       s.subTranslate = translateToggle.checked;
       s.lang = selectedLang;
+      s.codec = codecSelect.value;
 
       saveSettings(s);
 
@@ -962,6 +1008,7 @@
     [
       proxyToggle,
       qualitySelect,
+      codecSelect,
       syncTimeToggle,
       subToggle,
       translateToggle,
