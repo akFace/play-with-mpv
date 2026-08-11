@@ -207,27 +207,30 @@
     ];
 
     if (settings.subEnabled) {
+      const lang = navigator.language || navigator.userLanguage;
+      args.push(`--sub-auto=fuzzy`);
       args.push(`--ytdl-raw-options-append=write-subs=`);
       args.push(`--ytdl-raw-options-append=write-auto-subs=`);
 
       if (settings.lang === "zh") {
+        args.push(`--slang=zh,zh-CN,zh-Hans,zh-Hant`);
         if (settings.subTranslate) {
           args.push(
-            `--ytdl-raw-options-append=sub-langs="en-orig-zh-Hans,en-orig-zh-CN,en-orig-zh,auto-zh-Hans,auto-zh-CN,auto-zh,zh-Hans,zh-CN,zh,zh-TW,zh-HK"`
+            `--ytdl-raw-options-append=sub-langs="zh-Hant,zh-Hans,zh-CN,zh,zh-TW,zh-HK,en-orig-zh-Hans,en-orig-zh-CN,en-orig-zh,auto-zh-Hans,auto-zh-CN,auto-zh,en,zh-Hant-en-GB,zh-Hant-en-US,zh-Hans-en-GB,zh-Hans-en-US"`
           );
         } else {
           args.push(
-            `--ytdl-raw-options-append=sub-langs="zh-Hans,zh-CN,zh,zh-TW,zh-HK,en"`
+            `--ytdl-raw-options-append=sub-langs="zh-Hans,zh-Hant,zh-CN,zh,zh-TW,zh-HK,en"`
           );
         }
       } else {
         if (settings.subTranslate) {
           args.push(
-            `--ytdl-raw-options-append=sub-langs="zh-orig-en,auto-en,en"`
+            `--ytdl-raw-options-append=sub-langs="${lang},zh-orig-en,auto-en,en"`
           );
         } else {
           args.push(
-            `--ytdl-raw-options-append=sub-langs="en,en-US,en-GB,zh-Hans"`
+            `--ytdl-raw-options-append=sub-langs="${lang},en,en-US,en-GB,auto-en,zh-Hans"`
           );
         }
       }
