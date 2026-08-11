@@ -1331,7 +1331,7 @@
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
   async function initWhenReady() {
     if (document.getElementById("mpv-control-container")) return;
-    const useScriptPars = getSettings()?.useScriptPars;
+    const useScriptPars = getSettings()?.useScriptPars || [];
     const checkVideoBig = async () => {
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
