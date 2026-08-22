@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.18
+// @version      1.1.19
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -55,9 +55,9 @@
       // 在 I18N 的 zh 中增加
       codecLabel: "首选视频编码格式",
       codecNoLimit: "不限编码 (默认)",
-      scriptParsLabel: "插件解析站点（可选）",
+      scriptParsLabel: "内置解析站点（可选）",
       scriptParsPlaceholder:
-        "请输入站点(例: youtube.com)，每行一个\n脚本默认先读取yt_dlp支持的网站，不支持会自动调用插件解析，设置此处站点可跳过读取yt_dlp直接插件解析...",
+        "请输入站点(例: youtube.com或者https://www.youtube.com)，每行一个\n一般情况下不需要设置此处站点，除非按钮无法显示\n设置此处站点会强制显示`按钮`并且跳过读取yt_dlp直接插件内置解析...",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -80,7 +80,7 @@
       codecNoLimit: "No Limit (Default)",
       scriptParsLabel: "Script Parsing Site (Optional)",
       scriptParsPlaceholder:
-        "Enter parsing sites (e.g. youtube.com), one per line (separated by Enter)...",
+        "Enter parsing sites (e.g. youtube.com or https://www.youtube.com), one per line (separated by Enter)...\nGenerally, there is no need to set it.",
     },
   };
 
@@ -185,28 +185,34 @@
     const startTimeArg =
       settings.syncTime && media.time ? `--start="${media.time}"` : "";
 
+    // ytdlp解析参数
+    const ytdlpArg = media.isYtdlp
+      ? [
+          `--ytdl-raw-options-append=add-header="Origin: ${media.origin}"`,
+          `--ytdl-raw-options-append=add-header="Referer: ${media.referrer}"`,
+          `--ytdl-raw-options-append=add-header="Cookie: ${media.cookie}"`,
+          `--ytdl-raw-options-append=user-agent=${media.ua}"`,
+          proxyArg,
+          qualityArg,
+        ]
+      : [];
     let args = [
       `"${media.video}"`,
       media.audio ? `--audio-file="${media.audio}"` : "",
       media.subtitle ? `--sub-file="${media.subtitle}"` : "",
       media.title ? `--force-media-title="${media.title}"` : "",
-      media.origin ? `--http-header-fields="Origin: ${media.origin}"` : "",
-      media.referrer ? `--http-header-fields="Referer: ${media.referrer}"` : "",
-      media.referrer
-        ? `--http-header-fields="referrer: ${media.referrer}"`
-        : "",
-      media.cookie ? `--http-header-fields="Cookie: ${media.cookie}"` : "",
-      media.referrer ? `--referrer="${media.referrer}"` : "",
       media.ua ? `--user-agent="${media.ua}"` : "",
+      `--http-header-fields="Origin: ${media.origin},Referer: ${media.referrer},referrer: ${media.referrer},Cookie: ${media.cookie}"`,
+      media.isYtdlp
+        ? `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`
+        : "--ytdl=no",
+      ...ytdlpArg,
       startTimeArg,
-      proxyArg,
       httpProxyArg,
-      qualityArg,
-      `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
       `--cookies=yes`,
     ];
 
-    if (settings.subEnabled) {
+    if (settings.subEnabled && media.isYtdlp) {
       const lang = navigator.language || navigator.userLanguage;
       args.push(`--sub-auto=fuzzy`);
       args.push(`--ytdl-raw-options-append=write-subs=`);
@@ -235,7 +241,6 @@
         }
       }
     }
-
     args = args.filter((item) => item !== "");
     console.log("MPV 启动参数：", args);
     window.open(`ush://MPV?${compress(args.join(" "))}`, "_self");
@@ -1213,6 +1218,7 @@
       time: 0,
       audio: null,
       subtitle: null,
+      isYtdlp: false,
     };
 
     // 获取嗅探到的字幕（取最新的一条）
@@ -1245,6 +1251,7 @@
         is_yt_dlp_supported_sites)
     ) {
       media.video = href;
+      media.isYtdlp = true;
       openMpv(media);
       return;
     }
@@ -1261,6 +1268,13 @@
         openMpv(media);
         return;
       }
+    }
+    // 判断网页的第三方播放器
+    const hlsVideo = document.querySelector("hls-video");
+    if (hlsVideo && hlsVideo.src?.startsWith("http")) {
+      media.video = hlsVideo.src;
+      openMpv(media);
+      return;
     }
 
     let TIME_OUT = 10; // 超时(秒)未检测到视频流直接打开网页链接
@@ -1291,6 +1305,7 @@
             var userResponse = confirm(t(`supportedTips`));
             if (userResponse) {
               media.video = href;
+              media.isYtdlp = true;
               openMpv(media);
             }
             loadingInstance.destroy();
@@ -1314,7 +1329,9 @@
   }
 
   function getBestVideo() {
-    const videos = Array.from(document.querySelectorAll("video"));
+    const videos =
+      Array.from(document.querySelectorAll("video")) ||
+      Array.from(document.querySelectorAll("hls-video"));
     if (videos.length === 0) return null;
 
     const playingVideos = videos.filter((v) => !v.paused && !v.ended);
@@ -1343,13 +1360,8 @@
           const isUseScriptPars = useScriptPars?.some((site) =>
             href.includes(site)
           );
-          const hasVideoUrl = interceptedVideoUrls.size > 0;
           // 视频高度占屏幕高度超过 23% 就显示按钮
-          if (
-            videoPercent >= 23 ||
-            (video && isUseScriptPars) ||
-            (hasVideoUrl && isUseScriptPars)
-          ) {
+          if (videoPercent >= 23 || isUseScriptPars) {
             clearTimeout(timer);
             resolve(true);
           } else {
