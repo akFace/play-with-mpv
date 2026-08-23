@@ -15,7 +15,7 @@
 
 ### 2. 安装油猴插件
 
-- [Tampermonkey](https://www.tampermonkey.net/index.php)
+- [Tampermonkey](https://www.tampermonkey.net/index.php)（**已安装的可跳过此步骤**）
 
 ### 3. 安装油猴脚本
 
@@ -29,6 +29,7 @@
 
 - 打开 URL Scheme Handler 并设置如图：注意 MPV 为大写
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
+- 设置完毕，关掉 URL Scheme Handler，打开视频页面试试吧~
 
 ### 相关问题
 
@@ -56,6 +57,12 @@ pip install yt-dlp
 ```sh
 python get_yt_dlp_supported_sites.py
 ```
+
+### 用户协议&免责声明
+
+- 插件会读取网站的 cookie，`GM_cookie`和`document.cookie`
+- 插件不会收集用户的 cookie，只用于传参给播放器校验操作，播放器内进行相关操作与本人无关
+- 本仓库为开源项目，其他第三方用户进行二次改造所造成的相关法律问题与本人无关
 
 ### 参考相关仓库
 

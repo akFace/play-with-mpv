@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.19
+// @version      1.1.20
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -11,6 +11,7 @@
 // @grant        GM_getValue
 // @run-at       document-end
 // @grant        GM_registerMenuCommand
+// @grant        GM_cookie
 // @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/play-with-mpv/raw/main/static/yt_dlp_supported_sites.json
 // @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
@@ -147,9 +148,40 @@
       createScript: (input) => input,
     };
   }
+  // 获取httpOnly cookies
+  async function getCookiesForUrl(url) {
+    return new Promise((resolve, reject) => {
+      if (typeof GM_cookie === "undefined") {
+        reject(new Error("GM_cookie API 不可用, 请安装Tampermonkey的Beta版本"));
+        return;
+      }
 
+      GM_cookie.list(
+        {
+          url: url,
+        },
+        (cookies, error) => {
+          if (error) {
+            reject(new Error(error));
+            return;
+          }
+
+          if (!cookies || !cookies.length) {
+            resolve("");
+            return;
+          }
+
+          const cookieHeader = cookies
+            .map((cookie) => `${cookie.name}=${cookie.value}`)
+            .join("; ");
+
+          resolve(cookieHeader);
+        }
+      );
+    });
+  }
   // 唤起 MPV 核心函数
-  function openMpv(media) {
+  async function openMpv(media) {
     const settings = getSettings();
     const proxyArg =
       settings.proxyEnabled && settings.networkProxy
@@ -185,31 +217,49 @@
     const startTimeArg =
       settings.syncTime && media.time ? `--start="${media.time}"` : "";
 
+    let cookiesForURL = null;
+    try {
+      cookiesForURL = await getCookiesForUrl(media.video);
+    } catch (error) {
+      console.log(
+        "%cerror: ",
+        "color: MidnightBlue; background: Aquamarine;",
+        error
+      );
+    }
     // ytdlp解析参数
     const ytdlpArg = media.isYtdlp
       ? [
           `--ytdl-raw-options-append=add-header="Origin: ${media.origin}"`,
           `--ytdl-raw-options-append=add-header="Referer: ${media.referrer}"`,
-          `--ytdl-raw-options-append=add-header="Cookie: ${media.cookie}"`,
-          `--ytdl-raw-options-append=user-agent=${media.ua}"`,
+          `--ytdl-raw-options-append=add-header="Cookie: ${
+            cookiesForURL ? cookiesForURL : media.cookie
+          }"`,
+          `--ytdl-raw-options-append=user-agent="${media.ua}"`,
           proxyArg,
           qualityArg,
         ]
       : [];
     let args = [
       `"${media.video}"`,
-      media.audio ? `--audio-file="${media.audio}"` : "",
-      media.subtitle ? `--sub-file="${media.subtitle}"` : "",
       media.title ? `--force-media-title="${media.title}"` : "",
+      media.audio ? `--audio-file="${media.audio}"` : "",
+      settings.subEnabled && media.subtitle
+        ? `--sub-file="${media.subtitle}"`
+        : "",
       media.ua ? `--user-agent="${media.ua}"` : "",
-      `--http-header-fields="Origin: ${media.origin},Referer: ${media.referrer},referrer: ${media.referrer},Cookie: ${media.cookie}"`,
+      `--http-header-fields="Origin: ${media.origin},Referer: ${
+        media.referrer
+      },referrer: ${media.referrer},Cookie: ${
+        cookiesForURL ? cookiesForURL : media.cookie
+      }"`,
       media.isYtdlp
         ? `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`
         : "--ytdl=no",
+      !media.isYtdlp ? `--cookies=yes` : "",
       ...ytdlpArg,
       startTimeArg,
       httpProxyArg,
-      `--cookies=yes`,
     ];
 
     if (settings.subEnabled && media.isYtdlp) {
