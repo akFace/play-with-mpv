@@ -15,7 +15,7 @@
 
 ### 2. 安装油猴插件
 
-- [Tampermonkey](https://www.tampermonkey.net/index.php)（**已安装的可跳过此步骤**）
+- [Tampermonkey-推荐 BETA 版本](https://www.tampermonkey.net/index.php)（**已安装的可跳过此步骤**）
 
 ### 3. 安装油猴脚本
 
@@ -38,6 +38,7 @@
 - q：没办法唤起 mpv 播放器？a：请按照教程一步一步来！
 - q：为何加载很慢？a：加载快慢与网站加载速度和网速以及 yt-dlp 解析速度有关
 - q：页面上出现两个按钮时该用哪个？a：优先使用视频上方的，如果无法播放再点另一个
+- q：为何更推荐 beta 版油猴？ a：部分网站需要调用`GM_cookie`才能正常播放，只有 beta 版的油猴才有这个 API
 
 ### 预览
 
