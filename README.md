@@ -58,7 +58,7 @@ pip install yt-dlp
 python get_yt_dlp_supported_sites.py
 ```
 
-### 用户协议&免责声明
+### 用户须知&免责声明
 
 - 插件会读取网站的 cookie，`GM_cookie`和`document.cookie`
 - 插件不会收集用户的 cookie，只用于传参给播放器校验操作，播放器内进行相关操作与本人无关
