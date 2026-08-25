@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.20
+// @version      1.1.21
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -45,6 +45,7 @@
       qualityLabel: "最高分辨率限制",
       noLimit: "不作限制 (最高画质)",
       syncTimeLabel: "同步网页视频进度 (时间)",
+      simpleLabel: "简化传参（无法播放时请尝试勾选）",
       sizeLabel: "按钮尺寸调节",
       opacityLabel: "贴边隐藏透明度", // 新增
       subToggle: "自动下载与加载字幕",
@@ -68,6 +69,8 @@
       qualityLabel: "Max Resolution Limit",
       noLimit: "No Limit (Best Quality)",
       syncTimeLabel: "Sync Video Progress (Time)",
+      simpleLabel:
+        "Simplified parameter passing (try checked if it cannot play)",
       sizeLabel: "Button Size Adjustment",
       opacityLabel: "Edge Hide Opacity", // 新增
       subToggle: "Auto Download & Load Subs",
@@ -99,6 +102,7 @@
     subEnabled: true,
     subTranslate: true,
     syncTime: false, // 是否同步时间
+    simpleParameter: false, // 是否简单传参
     btnSize: 40, // 按钮默认大小 (px)
     edgeOpacity: 0.5, // 贴边隐藏透明度
     positionSide: "right", // 记录在左侧还是右侧
@@ -197,8 +201,8 @@
 
       if (settings.codec) {
         if (settings.codec === "hevc") {
-          // B站的 HEVC 格式可能是 hev1 或 hvc1，用 / 分隔代表“优先尝试 hev1，不行则尝试 hvc1”
-          const hevcFormat = `bestvideo${resLimit}[vcodec^=hev1]+bestaudio/bestvideo${resLimit}[vcodec^=hvc1]+bestaudio`;
+          // B站的 HEVC 格式可能是 hev1 或 hvc1，用 / 分隔代表“优先尝试 hvc1，不行则尝试 hev1”
+          const hevcFormat = `bestvideo${resLimit}[vcodec^=hvc1]+bestaudio/bestvideo${resLimit}[vcodec^=hev1]+bestaudio`;
           return `--ytdl-format="${hevcFormat}/bestvideo+bestaudio/best"`;
         } else {
           // 其他编码（如 av1, vp9, avc 等）保持正常逻辑
@@ -230,8 +234,8 @@
     // ytdlp解析参数
     const ytdlpArg = media.isYtdlp
       ? [
-          `--ytdl-raw-options-append=add-header="Origin: ${media.origin}"`,
           `--ytdl-raw-options-append=add-header="Referer: ${media.referrer}"`,
+          `--ytdl-raw-options-append=add-header="Origin: ${media.origin}"`,
           `--ytdl-raw-options-append=add-header="Cookie: ${
             cookiesForURL ? cookiesForURL : media.cookie
           }"`,
@@ -240,6 +244,7 @@
           qualityArg,
         ]
       : [];
+
     let args = [
       `"${media.video}"`,
       media.title ? `--force-media-title="${media.title}"` : "",
@@ -248,11 +253,9 @@
         ? `--sub-file="${media.subtitle}"`
         : "",
       media.ua ? `--user-agent="${media.ua}"` : "",
-      `--http-header-fields="Origin: ${media.origin},Referer: ${
-        media.referrer
-      },referrer: ${media.referrer},Cookie: ${
+      `--http-header-fields="Referer: ${media.referrer},Cookie: ${
         cookiesForURL ? cookiesForURL : media.cookie
-      }"`,
+      },Origin: ${media.origin}"`,
       media.isYtdlp
         ? `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`
         : "--ytdl=no",
@@ -291,6 +294,19 @@
         }
       }
     }
+    // 如果勾选了简单传参
+    if (settings.simpleParameter) {
+      args = [
+        `"${media.video}"`,
+        media.title ? `--force-media-title="${media.title}"` : "",
+        media.audio ? `--audio-file="${media.audio}"` : "",
+        settings.subEnabled && media.subtitle
+          ? `--sub-file="${media.subtitle}"`
+          : "",
+        `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
+      ];
+    }
+
     args = args.filter((item) => item !== "");
     console.log("MPV 启动参数：", args);
     window.open(`ush://MPV?${compress(args.join(" "))}`, "_self");
@@ -891,9 +907,15 @@
         </div>
 
         <!-- 播放时间同步 -->
-        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02); padding: 8px 12px; border-radius: 10px;">
+        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
           <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
           <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+        </div>
+
+         <!-- 简化传参 -->
+        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
+          <label id="mpv-label-simple" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+          <input type="checkbox" id="mpv-simple-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
         </div>
         
         <!-- 画质设置 -->
@@ -994,6 +1016,7 @@
     const proxyAddrInput = modal.querySelector("#mpv-proxy-addr");
     const qualitySelect = modal.querySelector("#mpv-quality-select");
     const syncTimeToggle = modal.querySelector("#mpv-time-toggle");
+    const simpleParameterToggle = modal.querySelector("#mpv-simple-toggle");
     const sizeSlider = modal.querySelector("#mpv-size-slider");
     const sizeValDisplay = modal.querySelector("#mpv-size-val");
     const opacitySlider = modal.querySelector("#mpv-opacity-slider");
@@ -1016,6 +1039,7 @@
       modal.querySelector("#mpv-label-quality").innerText = text.qualityLabel;
       modal.querySelector("#mpv-quality-unlimit").innerText = text.noLimit;
       modal.querySelector("#mpv-label-synctime").innerText = text.syncTimeLabel;
+      modal.querySelector("#mpv-label-simple").innerText = text.simpleLabel;
       modal.querySelector("#mpv-label-size").innerText = text.sizeLabel;
       modal.querySelector("#mpv-label-opacity").innerText = text.opacityLabel;
       modal.querySelector("#mpv-label-sub").innerText = text.subToggle;
@@ -1041,6 +1065,7 @@
 
       qualitySelect.value = s.quality || "";
       syncTimeToggle.checked = s.syncTime;
+      simpleParameterToggle.checked = s.simpleParameter;
 
       sizeSlider.value = s.btnSize;
       sizeValDisplay.innerText = `${s.btnSize}px`;
@@ -1072,6 +1097,7 @@
       s.networkProxy = proxyAddrInput.value.trim();
       s.quality = qualitySelect.value;
       s.syncTime = syncTimeToggle.checked;
+      s.simpleParameter = simpleParameterToggle.checked;
       s.btnSize = currentSize;
       s.edgeOpacity = currentOpacity;
       s.subEnabled = subToggle.checked;
@@ -1110,6 +1136,7 @@
       qualitySelect,
       codecSelect,
       syncTimeToggle,
+      simpleParameterToggle,
       subToggle,
       translateToggle,
       langSelect,
