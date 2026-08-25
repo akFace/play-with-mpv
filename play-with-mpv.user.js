@@ -249,9 +249,11 @@
     const httpArg = !media.isYtdlp
       ? [
           media.ua ? `--user-agent="${media.ua}"` : "",
-          `--http-header-fields="Referer: ${media.referrer},Cookie: ${
+          `--http-header-fields="Origin: ${media.origin},Referer: ${
+            media.referrer
+          },referrer: ${media.referrer},Cookie: ${
             cookiesForURL ? cookiesForURL : media.cookie
-          },Origin: ${media.origin},referrer=${media.referrer}"`,
+          }"`,
           `--cookies=yes`,
           `--ytdl=no`,
         ]
