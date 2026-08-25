@@ -240,8 +240,20 @@
             cookiesForURL ? cookiesForURL : media.cookie
           }"`,
           `--ytdl-raw-options-append=user-agent="${media.ua}"`,
+          `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
           proxyArg,
           qualityArg,
+        ]
+      : [];
+    // http内置请求解析参数
+    const httpArg = !media.isYtdlp
+      ? [
+          media.ua ? `--user-agent="${media.ua}"` : "",
+          `--http-header-fields="Referer: ${media.referrer},Cookie: ${
+            cookiesForURL ? cookiesForURL : media.cookie
+          },Origin: ${media.origin},referrer=${media.referrer}"`,
+          `--cookies=yes`,
+          `--ytdl=no`,
         ]
       : [];
 
@@ -252,14 +264,7 @@
       settings.subEnabled && media.subtitle
         ? `--sub-file="${media.subtitle}"`
         : "",
-      media.ua ? `--user-agent="${media.ua}"` : "",
-      `--http-header-fields="Referer: ${media.referrer},Cookie: ${
-        cookiesForURL ? cookiesForURL : media.cookie
-      },Origin: ${media.origin}"`,
-      media.isYtdlp
-        ? `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`
-        : "--ytdl=no",
-      !media.isYtdlp ? `--cookies=yes` : "",
+      ...httpArg,
       ...ytdlpArg,
       startTimeArg,
       httpProxyArg,
@@ -294,7 +299,7 @@
         }
       }
     }
-    // 如果勾选了简单传参
+    // 如果勾选了简单传参.直接丢给yt-dlp自动解析
     if (settings.simpleParameter) {
       args = [
         `"${media.video}"`,
