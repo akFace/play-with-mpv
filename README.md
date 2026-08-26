@@ -1,10 +1,12 @@
 # play-with-mpv 使用 mpv 播放网页中的视频
 
-- 使用外部播放器播放网页中的视频
+- 使用外部播放器播放网页中的视频，支持 Windows、macOS、Linux
 - 本工具通过嗅探资源方式获取视频原始链接 + `yt-dlp` 配合，能够覆盖大部分视频网站
 - 注：由于是通过嗅探方式获取原始链接，**请先等待网页视频加载播放后再唤起 mpv 播放器**
 - 支持大部分视频网站，部分加密视频 以及 [yt-dlp 支持的网站](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
+- 部分网站（B 站/YouTube）支持选择画质、视频编码、字幕
 - 弹幕加载方案：[>>如何加载弹幕？](https://github.com/akFace/play-with-mpv/issues/2)
+- B 站加载最高画质方案：[方法 ① 推荐](https://github.com/akFace/play-with-mpv/issues/1)
 - [>>常见相关问题](https://github.com/akFace/play-with-mpv#%E7%9B%B8%E5%85%B3%E9%97%AE%E9%A2%98)
 
 ## 🧱 安装
@@ -23,13 +25,13 @@
 
 ### 4. 安装 URL Scheme Handler
 
-- 下载：[URL Scheme Handler](https://github.com/LuckyPuppy514/url-scheme-handler)
+- 下载：[URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross) 跨平台唤醒播放器协议
 
 - 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录
 
 - 打开 URL Scheme Handler 并设置如图：注意 MPV 为大写
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
-- 设置完毕，关掉 URL Scheme Handler，打开视频页面试试吧~
+- 设置完毕，Windows 端可关掉 URL Scheme Handler，打开视频页面试试吧~
 
 ### 相关问题
 
@@ -72,4 +74,4 @@ python get_yt_dlp_supported_sites.py
 - [mpv-config](https://github.com/akFace/mpv.config)
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 - [external-player](https://github.com/LuckyPuppy514/external-player)
-- [URL Scheme Handler](https://github.com/LuckyPuppy514/url-scheme-handler)
+- [URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross)
