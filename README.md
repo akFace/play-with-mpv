@@ -25,9 +25,9 @@
 
 ### 4. 安装 URL Scheme Handler
 
-- 下载：[URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross) 跨平台唤醒播放器协议
+- 下载：[URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross) 跨平台唤起播放器协议
 
-- 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录
+- 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，windows 用户进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录，macOS、Linux 用户可自行搜索安装教程
 
 - 打开 URL Scheme Handler 并设置如图：注意 MPV 为大写
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
