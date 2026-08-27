@@ -23,15 +23,15 @@
 
 - [play-with-mpv](https://greasyfork.org/zh-CN/scripts/587265)
 
-### 4. 安装 URL Scheme Handler
+### 4. 安装 Scheme Handler
 
-- 下载：[URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross) 跨平台唤起播放器协议
+- 下载：[Scheme Handler cross](https://github.com/akFace/scheme-handler-cross) 跨平台唤起播放器协议
 
 - 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，windows 用户进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录，macOS、Linux 用户可自行搜索安装教程
 
-- 打开 URL Scheme Handler 并设置如图：注意 MPV 为大写
+- 打开 Scheme Handler 并设置如图：注意 MPV 为大写
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
-- 设置完毕，Windows 端可关掉 URL Scheme Handler，打开视频页面试试吧~
+- 设置完毕，Windows 端可关掉 Scheme Handler，打开视频页面试试吧~
 
 ### 相关问题
 
@@ -74,4 +74,4 @@ python get_yt_dlp_supported_sites.py
 - [mpv-config](https://github.com/akFace/mpv.config)
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 - [external-player](https://github.com/LuckyPuppy514/external-player)
-- [URL Scheme Handler cross](https://github.com/akFace/url-scheme-handler-cross)
+- [Scheme Handler cross](https://github.com/akFace/scheme-handler-cross)
