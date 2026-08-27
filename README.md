@@ -31,7 +31,7 @@
 
 - 打开 Scheme Handler 并设置如图：**注意 MPV 为大写**，Windows 系列选择播放器安装目录下的`mpv.exe`，macOS 系统选择 `/Applications/mpv.app`，Linux 系统选择`/bin/mpv`
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
-- 设置完毕，Windows 端可关掉 Scheme Handler，打开视频页面试试吧
+- 设置完毕，Windows、Linux 端可关掉 Scheme Handler，macOS 端需要挂后台，打开视频页面试试效果吧
 
 ### 相关问题
 
