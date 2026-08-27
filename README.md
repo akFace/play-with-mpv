@@ -29,9 +29,9 @@
 
 - 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，windows 用户进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录，macOS、Linux 用户可自行搜索安装教程
 
-- 打开 Scheme Handler 并设置如图：注意 MPV 为大写
+- 打开 Scheme Handler 并设置如图：**注意 MPV 为大写**，Windows 系列选择播放器安装目录下的`mpv.exe`，macOS 系统选择 `/Applications/mpv.app`，Linux 系统选择`/bin/mpv`
   ![image](https://github.com/akFace/play-with-mpv/raw/main/images/Snipaste_2026-07-16_17-53-00.jpg)
-- 设置完毕，Windows 端可关掉 Scheme Handler，打开视频页面试试吧~
+- 设置完毕，Windows 端可关掉 Scheme Handler，打开视频页面试试吧
 
 ### 相关问题
 
