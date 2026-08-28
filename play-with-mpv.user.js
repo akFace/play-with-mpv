@@ -9,8 +9,9 @@
 // @match        *://*/*
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @run-at       document-end
 // @grant        GM_registerMenuCommand
+// @run-at       document-start
+// @grant        GM_xmlhttpRequest
 // @grant        GM_cookie
 // @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/play-with-mpv/raw/main/static/yt_dlp_supported_sites.json
 // @grant GM_getResourceText
@@ -356,111 +357,696 @@
   }
 
   async function interceptedVideo() {
-    // 监听所有资源加载请求
-    const observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach((entry) => {
-        const url = entry.name;
-        checkAndSaveUrl(url);
+    // ============================================================
+    // 拦截请求捕获真实视频URL
+    // 规则: M3U8 > 视频后缀 > Content-Type
+    // URL 候选池
+    // ============================================================
+
+    const candidates = new Map();
+
+    let bestCandidate = null;
+
+    // ============================================================
+    // 配置
+    // ============================================================
+
+    // 第一优先级：M3U8
+    const m3u8Extensions = [".m3u8", ".m3u", ".mpd"];
+
+    // 第二优先级：明确的视频文件后缀
+    const videoExtensions = [
+      ".mp4",
+      ".mkv",
+      ".webm",
+      ".mov",
+      ".avi",
+      ".flv",
+      ".wmv",
+      ".m4v",
+      ".f4v",
+      ".ogv",
+      ".3gp",
+      ".3g2",
+      ".ts",
+      ".m2ts",
+      ".mts",
+      ".mpg",
+      ".mpeg",
+      ".vob",
+      ".asf",
+      ".rm",
+      ".rmvb",
+    ];
+
+    // 字幕
+    const subtitleExtensions = [
+      ".vtt",
+      ".srt",
+      ".ass",
+      ".ssa",
+      ".sub",
+      ".idx",
+      ".sup",
+      ".pgs",
+    ];
+
+    // ============================================================
+    // Content-Type
+    // ============================================================
+
+    const videoContentTypes = [
+      "video/",
+      "application/vnd.apple.mpegurl",
+      "application/x-mpegurl",
+      "application/mpegurl",
+      "application/dash+xml",
+      "application/mp4",
+      "application/octet-stream",
+    ];
+
+    // ============================================================
+    // 广告关键词
+    //
+    // 这里只处理 URL 明显带广告特征的情况。
+    // 不再判断 video.duration。
+    // ============================================================
+
+    const adKeywords = [
+      "advert",
+      "advertisement",
+      "adserver",
+      "adsrv",
+      "adserv",
+      "adservice",
+      "adsystem",
+      "adserver",
+      "adbreak",
+      "ad-break",
+      "ad_break",
+      "pre-roll",
+      "preroll",
+      "pre_roll",
+      "midroll",
+      "mid-roll",
+      "mid_roll",
+      "postroll",
+      "post-roll",
+      "post_roll",
+      "vast",
+      "vpaid",
+      "doubleclick",
+      "googlesyndication",
+      "googleadservices",
+      "pagead",
+      "ads.",
+      "/ads/",
+      "/ad/",
+      "/ads/",
+      "/advert/",
+      "/advertising/",
+      "/commercial/",
+      "/sponsor/",
+      "trafficjunky",
+    ];
+
+    // ============================================================
+    // 排除关键词
+    //
+    // 这些通常不是视频本体请求。
+    // ============================================================
+
+    const excludeKeywords = [
+      "/log",
+      "/logs",
+      "/stat",
+      "/stats",
+      "/report",
+      "/ping",
+      "/track",
+      "/track_ua",
+      "/analytics",
+      "/analysis",
+      "/console",
+      "/preview",
+      "/thumbnail",
+      "/thumb",
+      "/poster",
+      "/cover",
+      "/image",
+      "/images",
+      "/icon",
+      "/favicon",
+      "/sprite",
+      "/captcha",
+      "/manifest.json",
+      "/service-worker",
+      "sentry",
+      "bugsnag",
+      "crash",
+      "feedback",
+      "monitor",
+      "exception",
+    ];
+
+    // ============================================================
+    // 明显的分片特征
+    //
+    // 注意：
+    // 这里不能简单排除所有 .ts / .m4s，
+    // 因为我们真正关心的是：
+    //
+    //     不要把“分片”作为最终视频 URL
+    //
+    // 而不是阻止 m3u8。
+    // ============================================================
+
+    const segmentKeywords = [
+      "/segment/",
+      "/segments/",
+      "/fragment/",
+      "/fragments/",
+      "/chunks/",
+      "/chunk/",
+      "/media/",
+      "/init/",
+      "/parts/",
+      "/part/",
+      "/seg/",
+      "/segments-",
+      "/segment-",
+      "/chunk-",
+      "/fragment-",
+    ];
+
+    // ============================================================
+    // 工具函数：判断 URL 是否明显是广告
+    // ============================================================
+
+    function isAdUrl(url) {
+      const lower = url.toLowerCase();
+
+      return adKeywords.some((keyword) => {
+        return lower.includes(keyword.toLowerCase());
       });
-    });
-    observer.observe({ entryTypes: ["resource"] });
+    }
 
-    const originalFetch = window.fetch;
-    window.fetch = async function (...args) {
-      const url = args[0];
-      if (typeof url === "string") checkAndSaveUrl(url);
-      return originalFetch.apply(this, args);
-    };
+    // ============================================================
+    // 工具函数：判断 URL 是否属于明显的非视频资源
+    // ============================================================
 
-    const originalOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (method, url, ...args) {
-      if (typeof url === "string") checkAndSaveUrl(url);
-      return originalOpen.apply(this, [method, url, ...args]);
-    };
+    function isExcludedUrl(url) {
+      const lower = url.toLowerCase();
 
-    function checkAndSaveUrl(url) {
-      const fileVideoExtensions = [
-        ".m3u8",
-        ".mpd",
-        ".mp4",
-        ".flv",
-        ".mkv",
-        ".webm",
-        ".avi",
-        ".mov",
-        ".wmv",
-        ".3gp",
-        ".3gp2",
-        ".ogg",
-        ".ogv",
-        ".m4s",
-        ".f4v",
-        ".acc",
-        ".rmvb",
-        ".image",
-        ".m3u",
-      ];
-      const fileSubtitleExtensions = [".vtt", ".srt", ".ass", ".pgs"];
+      return excludeKeywords.some((keyword) => {
+        return lower.includes(keyword.toLowerCase());
+      });
+    }
 
-      // 排除关键词
-      const excludeKey = [
-        "/log",
-        "/stat",
-        "/report",
-        "/ping",
-        "/track",
-        "/track_ua",
-        "/analysis",
-        "/console",
-        "/preview",
-        // --- 错误监控与反馈 ---
-        "sentry",
-        "bugsnag",
-        "crash",
-        "feedback",
-        "monitor",
-        "exception",
-      ];
+    // ============================================================
+    // 工具函数：判断是否像分片
+    //
+    // 这里只用于降低/排除分片候选。
+    // m3u8 永远不受这个判断影响。
+    // ============================================================
+
+    function looksLikeSegment(url, pathname) {
+      const lowerUrl = url.toLowerCase();
+      const lowerPath = pathname.toLowerCase();
+
+      // m3u8 永远不是这里要排除的对象
+      if (lowerPath.endsWith(".m3u8")) {
+        return false;
+      }
+
+      // 常见分片目录
+      if (
+        segmentKeywords.some((keyword) =>
+          lowerPath.includes(keyword.toLowerCase())
+        )
+      ) {
+        return true;
+      }
+
+      // ------------------------------------------------------------
+      // xxx01.html / xxx001.html / xxx0001.html
+      //
+      // 你之前遇到的网站就是这种形式。
+      // 这类通常是媒体分片，不应该直接给 MPV。
+      // ------------------------------------------------------------
+
+      const filename = lowerPath.substring(lowerPath.lastIndexOf("/") + 1);
+
+      if (
+        /^[^/]+[-_]\d{1,6}\.html?$/.test(filename) ||
+        /^[^/]+\d{2,6}\.html?$/.test(filename)
+      ) {
+        return true;
+      }
+
+      // 常见 segment 文件名
+      if (/^(seg|segment|chunk|fragment)[-_]?\d+/i.test(filename)) {
+        return true;
+      }
+
+      // 常见 .ts / .m4s 文件
+      if (
+        lowerPath.endsWith(".ts") ||
+        lowerPath.endsWith(".m4s") ||
+        lowerPath.endsWith(".m4f") ||
+        lowerPath.endsWith(".cmfv") ||
+        lowerPath.endsWith(".cmfa")
+      ) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // ============================================================
+    // URL 后缀判断
+    // ============================================================
+
+    function getUrlExtension(urlObj) {
+      const pathname = urlObj.pathname.toLowerCase();
+
+      for (const ext of m3u8Extensions) {
+        if (pathname.endsWith(ext)) {
+          return ext;
+        }
+      }
+
+      for (const ext of videoExtensions) {
+        if (pathname.endsWith(ext)) {
+          return ext;
+        }
+      }
+
+      return null;
+    }
+
+    // ============================================================
+    // Content-Type 判断
+    // ============================================================
+
+    function isVideoContentType(contentType) {
+      if (!contentType) {
+        return false;
+      }
+
+      const type = contentType.toLowerCase().split(";")[0].trim();
+
+      return videoContentTypes.some((item) => {
+        if (item.endsWith("/")) {
+          return type.startsWith(item);
+        }
+
+        return type === item;
+      });
+    }
+
+    // ============================================================
+    // 判断 URL 是否可能只是普通 HTML / API
+    // ============================================================
+
+    function looksLikeHtmlOrApi(urlObj) {
+      const pathname = urlObj.pathname.toLowerCase();
+
+      // 明显 API
+      if (
+        pathname.includes("/api/") ||
+        pathname.includes("/ajax/") ||
+        pathname.includes("/graphql")
+      ) {
+        return true;
+      }
+
+      // 明显 HTML 页面
+      if (
+        pathname.endsWith(".html") ||
+        pathname.endsWith(".htm") ||
+        pathname.endsWith(".php") ||
+        pathname.endsWith(".asp") ||
+        pathname.endsWith(".aspx")
+      ) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // ============================================================
+    // 计算候选等级
+    //
+    // 1000 = M3U8
+    //  500 = 明确视频后缀
+    //  100 = Content-Type 视频
+    //
+    // 广告 URL：
+    //     直接排除
+    //
+    // 注意：
+    //     没有 Content-Type 不会凭空成为候选。
+    // ============================================================
+
+    function getCandidate(url, contentType = "") {
+      if (!url || typeof url !== "string") {
+        return null;
+      }
+
+      let urlObj;
+
+      try {
+        urlObj = new URL(url, window.location.href);
+      } catch (_) {
+        return null;
+      }
+
+      const normalizedUrl = urlObj.href;
+      const pathname = urlObj.pathname.toLowerCase();
+
+      // ------------------------------------------------------------
+      // blob URL 不作为这里的最终 URL
+      //
+      // 因为你的目标是：
+      // 找到 MPV 可以直接加载的源地址。
+      //
+      // blob 本身不是源视频 URL。
+      // ------------------------------------------------------------
+
+      if (urlObj.protocol === "blob:") {
+        return null;
+      }
+
+      // data: / javascript:
+      if (urlObj.protocol === "data:" || urlObj.protocol === "javascript:") {
+        return null;
+      }
+
+      // ------------------------------------------------------------
+      // 排除明显的日志 / 统计 / 监控
+      // ------------------------------------------------------------
+
+      if (isExcludedUrl(normalizedUrl)) {
+        return null;
+      }
+
+      // ------------------------------------------------------------
+      // 广告 URL：
+      // 只要 URL 特征明显，就排除。
+      //
+      // 不再判断时长。
+      // ------------------------------------------------------------
+
+      if (isAdUrl(normalizedUrl)) {
+        // console.log("[Video Hook] 🚫 排除明显广告:", normalizedUrl);
+        return null;
+      }
+
+      // ------------------------------------------------------------
+      // 第一优先级：M3U8
+      // ------------------------------------------------------------
+
+      if (m3u8Extensions.some((ext) => pathname.endsWith(ext))) {
+        return {
+          url: normalizedUrl,
+          score: 1000,
+          type: "m3u8",
+          contentType,
+        };
+      }
+
+      // ------------------------------------------------------------
+      // 分片排除
+      //
+      // 放在 M3U8 后面。
+      // ------------------------------------------------------------
+
+      if (looksLikeSegment(normalizedUrl, pathname)) {
+        return null;
+      }
+
+      // ------------------------------------------------------------
+      // 第二优先级：URL 视频后缀
+      // ------------------------------------------------------------
+
+      const ext = getUrlExtension(urlObj);
+
+      if (ext && videoExtensions.includes(ext)) {
+        return {
+          url: normalizedUrl,
+          score: 500,
+          type: "video-extension",
+          extension: ext,
+          contentType,
+        };
+      }
+
+      // ------------------------------------------------------------
+      // 第三优先级：Content-Type
+      //
+      // 没有 Content-Type：
+      //     不因为它“看起来像视频”就加入。
+      // ------------------------------------------------------------
+
+      if (isVideoContentType(contentType)) {
+        // application/octet-stream 太泛了。
+        // 如果 URL 本身还是明显 API / HTML，就不接受。
+        if (contentType.toLowerCase().startsWith("application/octet-stream")) {
+          if (looksLikeHtmlOrApi(urlObj)) {
+            return null;
+          }
+        }
+
+        return {
+          url: normalizedUrl,
+          score: 100,
+          type: "content-type",
+          contentType,
+        };
+      }
+
+      return null;
+    }
+
+    // ============================================================
+    // 更新最优候选
+    // ============================================================
+
+    function addCandidate(url, contentType = "", source = "") {
+      const candidate = getCandidate(url, contentType);
+
+      if (!candidate) {
+        return;
+      }
+
+      candidate.source = source;
+
+      const old = candidates.get(candidate.url);
+
+      // 同一个 URL 如果之前已经记录过，只保留更高等级
+      if (!old || candidate.score > old.score) {
+        candidates.set(candidate.url, candidate);
+      }
+
+      // 重新计算当前最高优先级
+      if (!bestCandidate || candidate.score > bestCandidate.score) {
+        bestCandidate = candidate;
+
+        console.log("[Video Hook] ⭐ 当前最佳视频 URL:", bestCandidate);
+
+        // ========================================================
+        // 这里就是你要求的：
+        //
+        // interceptedVideoUrls.add(url)
+        //
+        // 但为了避免旧的广告/低优先级 URL 残留，
+        // 先清空，只留下当前最优 URL。
+        // ========================================================
+
+        interceptedVideoUrls.clear();
+        interceptedVideoUrls.add(bestCandidate.url);
+      }
+    }
+
+    // ============================================================
+    // 字幕
+    // ============================================================
+
+    function checkSubtitle(url) {
+      if (!url || typeof url !== "string") {
+        return;
+      }
 
       try {
         const urlObj = new URL(url, window.location.href);
-        const pathnameLower = urlObj.pathname.toLowerCase(); // 关键：只取路径部分并转小写
+        const pathname = urlObj.pathname.toLowerCase();
 
-        // 1. 检查 pathname 是否以合法的视频格式结尾（允许后面带 ?query 参数）
-        // 例如：/path/video.m3u8?token=123 的 pathname 是 /path/video.m3u8，完美匹配
-        let matchedExt = fileVideoExtensions.find((ext) =>
-          pathnameLower.endsWith(ext)
+        const matched = subtitleExtensions.some((ext) =>
+          pathname.endsWith(ext)
         );
 
-        if (matchedExt) {
-          const urlLower = urlObj.href.toLowerCase();
-          let shouldExclude = false;
-
-          // 2. 检查路径或参数中是否包含排除关键词
-          for (const key of excludeKey) {
-            const keyIndex = urlLower.indexOf(key.toLowerCase());
-            const extIndex = urlLower.indexOf(matchedExt.toLowerCase());
-
-            // 如果排除词存在，且出现在视频后缀的前面，则排除
-            if (keyIndex !== -1 && keyIndex < extIndex) {
-              shouldExclude = true;
-              break;
-            }
-          }
-          if (!shouldExclude) {
-            interceptedVideoUrls.add(urlObj.href);
-            // console.log("🎉 成功嗅探到真实视频流:", urlObj.href);
-          }
+        if (!matched) {
+          return;
         }
 
-        if (fileSubtitleExtensions.some((ext) => pathnameLower.endsWith(ext))) {
-          interceptedSubtitleUrls.add(urlObj.href);
-          console.log("🎉 成功嗅探到字幕文件:", urlObj.href);
+        if (isExcludedUrl(urlObj.href)) {
+          return;
         }
-      } catch (e) {}
+
+        interceptedSubtitleUrls.add(urlObj.href);
+
+        console.log("[Video Hook] 🎬 捕获字幕:", urlObj.href);
+      } catch (_) {}
     }
-  }
 
+    // ============================================================
+    // 处理 URL
+    // ============================================================
+
+    function checkAndSaveUrl(url, contentType = "", source = "") {
+      if (!url || typeof url !== "string") {
+        return;
+      }
+
+      checkSubtitle(url);
+
+      addCandidate(url, contentType, source);
+    }
+
+    // ============================================================
+    // PerformanceObserver
+    //
+    // PerformanceResourceTiming 本身没有可靠的 Content-Type，
+    // 所以这里主要负责发现 URL。
+    //
+    // Content-Type 后续由 fetch/XHR 路径补充。
+    // ============================================================
+
+    try {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (!entry || !entry.name) {
+            continue;
+          }
+
+          checkAndSaveUrl(entry.name, "", "PerformanceObserver");
+        }
+      });
+
+      observer.observe({
+        entryTypes: ["resource"],
+      });
+    } catch (e) {
+      console.warn("[Video Hook] PerformanceObserver 安装失败:", e);
+    }
+
+    // ============================================================
+    // Fetch Hook
+    // ============================================================
+
+    const originalFetch = window.fetch;
+
+    if (!originalFetch.__interceptedVideoHook) {
+      const hookedFetch = async function (...args) {
+        let requestUrl = null;
+
+        try {
+          const input = args[0];
+
+          if (typeof input === "string") {
+            requestUrl = input;
+          } else if (input && typeof input.url === "string") {
+            requestUrl = input.url;
+          }
+        } catch (_) {}
+
+        // 请求发出之前先记录 URL
+        if (requestUrl) {
+          checkAndSaveUrl(requestUrl, "", "fetch-request");
+        }
+
+        const response = await originalFetch.apply(this, args);
+
+        // --------------------------------------------------------
+        // fetch response 可以直接获得 Content-Type
+        // --------------------------------------------------------
+
+        try {
+          const responseUrl = response.url || requestUrl;
+
+          const contentType = response.headers.get("content-type") || "";
+
+          if (responseUrl) {
+            checkAndSaveUrl(responseUrl, contentType, "fetch-response");
+          }
+        } catch (_) {}
+
+        return response;
+      };
+
+      hookedFetch.__interceptedVideoHook = true;
+
+      window.fetch = hookedFetch;
+    }
+
+    // ============================================================
+    // XHR Hook
+    // ============================================================
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+
+    const originalSend = XMLHttpRequest.prototype.send;
+
+    if (!XMLHttpRequest.prototype.__interceptedVideoHook) {
+      XMLHttpRequest.prototype.open = function (method, url, ...args) {
+        try {
+          this.__interceptedVideoUrl =
+            typeof url === "string"
+              ? new URL(url, window.location.href).href
+              : String(url);
+
+          checkAndSaveUrl(this.__interceptedVideoUrl, "", "xhr-open");
+        } catch (_) {}
+
+        return originalOpen.call(this, method, url, ...args);
+      };
+
+      XMLHttpRequest.prototype.send = function (...args) {
+        try {
+          this.addEventListener("readystatechange", function () {
+            if (this.readyState !== 2) {
+              return;
+            }
+
+            const url = this.responseURL || this.__interceptedVideoUrl;
+
+            if (!url) {
+              return;
+            }
+
+            let contentType = "";
+
+            try {
+              contentType = this.getResponseHeader("content-type") || "";
+            } catch (_) {}
+
+            checkAndSaveUrl(url, contentType, "xhr-response");
+          });
+        } catch (_) {}
+
+        return originalSend.apply(this, args);
+      };
+
+      XMLHttpRequest.prototype.__interceptedVideoHook = true;
+    }
+
+    // ============================================================
+    // 输出当前状态
+    // ============================================================
+    console.log("[Video Hook] 规则: M3U8 > 视频后缀 > Content-Type");
+    console.log("[Video Hook] 当前最佳:", bestCandidate);
+  }
   interceptedVideo();
 
   // 从上层页面接收数据到iframe，主要是视频源、标题、来源等信息
@@ -1280,6 +1866,380 @@
     };
   }
 
+  /* =========================================================
+   * 从缓存 / Hook 获取 M3U8 文本
+   * ========================================================= */
+  function getCapturedM3U8Text(blobUrl) {
+    const container = document.getElementById("__M3U8_CAPTURE_CONTAINER__");
+    if (!container) {
+      throw new Error("M3U8 DOM Bridge 未初始化");
+    }
+    const elements = Array.from(
+      container.querySelectorAll("textarea[data-blob-url]")
+    );
+    console.log("🔎 当前已经捕获:", elements.length, "个 M3U8");
+    /*
+     * ① 精确匹配 Blob URL
+     */
+    const exact = elements.find((el) => el.dataset.blobUrl === blobUrl);
+    if (exact) {
+      console.log("✅ 精确匹配:", blobUrl);
+      return exact.value;
+    }
+
+    /*
+     * ② 没匹配上
+     *
+     * 打印所有已捕获 URL
+     *
+     * 这个非常重要，用来排查
+     */
+
+    console.warn("⚠️ 没有找到:", blobUrl);
+    console.warn("当前已捕获 Blob:");
+    for (const el of elements) {
+      console.warn(el.dataset.blobUrl, "length:", el.value.length);
+    }
+    throw new Error(`没有捕获到该 Blob 对应的 M3U8 内容: ${blobUrl}`);
+  }
+
+  /* =========================================================
+   * M3U8 验证
+   * ========================================================= */
+
+  function validateM3U8(m3u8Text) {
+    if (!m3u8Text || typeof m3u8Text !== "string") {
+      return {
+        valid: false,
+        reason: "输入为空或非字符串",
+      };
+    }
+
+    const lines = m3u8Text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (lines.length === 0) {
+      return {
+        valid: false,
+        reason: "文件为空",
+      };
+    }
+
+    // HLS 标准头
+    if (!lines[0].startsWith("#EXTM3U")) {
+      return {
+        valid: false,
+        reason: "不是标准的 HLS M3U8 文件（缺少 #EXTM3U 头）",
+      };
+    }
+
+    let hasExtinf = false;
+    let hasStreamInf = false;
+    let hasIFrameStream = false;
+
+    for (const line of lines) {
+      if (line.startsWith("#EXTINF:")) {
+        hasExtinf = true;
+      } else if (line.startsWith("#EXT-X-STREAM-INF:")) {
+        hasStreamInf = true;
+      } else if (line.startsWith("#EXT-X-I-FRAME-STREAM-INF:")) {
+        hasIFrameStream = true;
+      }
+    }
+
+    if (hasExtinf) {
+      return {
+        valid: true,
+        type: "media",
+        detail: "包含视频分片（#EXTINF），可直接播放",
+      };
+    }
+
+    if (hasStreamInf) {
+      return {
+        valid: true,
+        type: "master",
+        detail: "这是一个主列表，包含多个子流，需要进一步请求子播放列表",
+      };
+    }
+
+    if (hasIFrameStream) {
+      return {
+        valid: true,
+        type: "iframe-only",
+        detail: "仅包含 I 帧流，可能不是完整的视频分片列表",
+      };
+    }
+
+    return {
+      valid: false,
+      reason: "未找到 #EXTINF 或 #EXT-X-STREAM-INF，可能不是有效的视频播放列表",
+    };
+  }
+
+  /* =========================================================
+   * 解析 Master M3U8
+   * ========================================================= */
+
+  function parseMasterPlaylist(text) {
+    const lines = text.split("\n");
+    const streams = [];
+    let currentAttrs = null;
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) {
+        continue;
+      }
+      if (line.startsWith("#EXT-X-STREAM-INF")) {
+        const attrStr = line.replace("#EXT-X-STREAM-INF:", "").trim();
+        const attrs = {};
+        // 简单解析属性
+        attrStr.split(",").forEach((pair) => {
+          const [key, ...valParts] = pair.split("=");
+          let val = valParts.join("=");
+          if (val.startsWith('"') && val.endsWith('"')) {
+            val = val.slice(1, -1);
+          }
+          attrs[key.trim()] = val;
+        });
+        currentAttrs = attrs;
+        continue;
+      }
+
+      // URI
+      if (
+        line.startsWith("blob:") ||
+        line.startsWith("http://") ||
+        line.startsWith("https://")
+      ) {
+        if (currentAttrs) {
+          streams.push({
+            uri: line,
+            bandwidth: parseInt(currentAttrs.BANDWIDTH) || 0,
+            resolution: currentAttrs.RESOLUTION || "unknown",
+            codecs: currentAttrs.CODECS || "",
+          });
+          currentAttrs = null;
+        }
+      }
+    }
+
+    return streams;
+  }
+
+  /* =========================================================
+   * GM_xmlhttpRequest GET
+   *
+   * 用来访问本地 Bridge
+   * 避免页面 CSP connect-src
+   * ========================================================= */
+
+  function gmGet(url) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: url,
+        onload(response) {
+          if (response.status < 200 || response.status >= 300) {
+            reject(new Error(`HTTP ${response.status}`));
+
+            return;
+          }
+          resolve(response);
+        },
+        onerror(error) {
+          reject(new Error("GM GET 请求失败"));
+        },
+      });
+    });
+  }
+
+  /* =========================================================
+   * GM_xmlhttpRequest POST
+   *
+   * 把 M3U8 上传给本地 Bridge
+   * ========================================================= */
+
+  function gmPostM3U8(url, m3u8Text) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "POST",
+        url: url,
+        headers: {
+          "Content-Type": "application/vnd.apple.mpegurl",
+        },
+        data: m3u8Text,
+        onload(response) {
+          if (response.status < 200 || response.status >= 300) {
+            reject(new Error(`HTTP ${response.status}`));
+            return;
+          }
+          try {
+            const data = JSON.parse(response.responseText);
+            resolve(data);
+          } catch (err) {
+            reject(new Error("Bridge 返回的不是有效 JSON"));
+          }
+        },
+        onerror(error) {
+          reject(new Error("GM POST 请求失败"));
+        },
+      });
+    });
+  }
+
+  /* =========================================================
+   * 本地 M3U8 Bridge
+   * ========================================================= */
+
+  async function getLocalServerM3U8(m3u8Text) {
+    // -----------------------------
+    // 1. 启动本地 Bridge
+    // -----------------------------
+
+    try {
+      window.open("ush://play?needServer=1", "_self");
+    } catch (err) {
+      console.warn("启动 ush Bridge 失败:", err);
+    }
+
+    // -----------------------------
+    // 2. 等待 Bridge
+    // -----------------------------
+
+    let serverReady = false;
+
+    for (let i = 0; i < 30; i++) {
+      try {
+        const response = await gmGet("http://127.0.0.1:17891/api/status");
+        if (response.status >= 200 && response.status < 300) {
+          serverReady = true;
+
+          break;
+        }
+      } catch (err) {
+        // Bridge 还没启动
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (!serverReady) {
+      throw new Error("本地 M3U8 Bridge 启动超时");
+    }
+
+    // -----------------------------
+    // 3. 上传 M3U8
+    // -----------------------------
+    const result = await gmPostM3U8(
+      "http://127.0.0.1:17891/api/m3u8",
+      m3u8Text
+    );
+    if (!result || !result.url) {
+      throw new Error("Bridge 没有返回 url");
+    }
+
+    return result.url;
+  }
+
+  /* =========================================================
+   * 主函数
+   * getCapturedM3U8Text(blobUrl)
+   * ========================================================= */
+
+  async function getBlobM3u8LocalUrl(blobUrl) {
+    if (typeof blobUrl !== "string" || !blobUrl.startsWith("blob:")) {
+      throw new Error(`无效的 Blob M3U8 URL: ${blobUrl}`);
+    }
+
+    /* =====================================================
+     * 第一层 M3U8
+     * ===================================================== */
+
+    const frstM3u8Content = await getCapturedM3U8Text(blobUrl);
+    /* =====================================================
+     * 验证第一层
+     * ===================================================== */
+
+    const validaMedia = validateM3U8(frstM3u8Content);
+
+    if (!validaMedia.valid) {
+      throw validaMedia;
+    }
+    /* =====================================================
+     * 如果第一层就是 Media Playlist
+     * ===================================================== */
+
+    if (validaMedia.type === "media") {
+      return await getLocalServerM3U8(frstM3u8Content);
+    }
+
+    /* =====================================================
+     * Master Playlist
+     * ===================================================== */
+
+    const streams = parseMasterPlaylist(frstM3u8Content);
+    if (!streams || streams.length === 0) {
+      throw new Error("Master M3U8 中没有找到任何子流");
+    }
+
+    /* =====================================================
+     * 按分辨率选择最高质量
+     * ===================================================== */
+
+    streams.sort((a, b) => {
+      const [w1, h1] = (a.resolution || "0x0").split("x").map(Number);
+      const [w2, h2] = (b.resolution || "0x0").split("x").map(Number);
+      const area1 = (w1 || 0) * (h1 || 0);
+      const area2 = (w2 || 0) * (h2 || 0);
+      // 分辨率相同则按 BANDWIDTH
+      if (area1 === area2) {
+        return (b.bandwidth || 0) - (a.bandwidth || 0);
+      }
+      return area2 - area1;
+    });
+
+    const bestStream = streams[0];
+    console.log("✅ 选中的最高分辨率子流:", bestStream);
+    const streamsURL = bestStream.uri;
+    /* =====================================================
+     * 第二层如果已经是 HTTP URL
+     *
+     * 这种情况下不用 Blob 捕获
+     * ===================================================== */
+
+    if (streamsURL.startsWith("http://") || streamsURL.startsWith("https://")) {
+      return streamsURL;
+    }
+
+    /* =====================================================
+     * 第二层是 Blob URL
+     * getCapturedM3U8Text(streamsURL)
+     * ===================================================== */
+
+    if (streamsURL.startsWith("blob:")) {
+      const mediaPlaylistText = await getCapturedM3U8Text(streamsURL);
+      const validaMediaTwo = validateM3U8(mediaPlaylistText);
+      if (!validaMediaTwo.valid) {
+        throw validaMediaTwo;
+      }
+      if (validaMediaTwo.type !== "media") {
+        throw new Error("第二层 M3U8 不是 Media Playlist");
+      }
+      /* =============================================
+       * 第二层 Media Playlist
+       * ============================================= */
+
+      return await getLocalServerM3U8(mediaPlaylistText);
+    }
+
+    /* =====================================================
+     * 其他未知 URI
+     * ===================================================== */
+
+    throw new Error(`无法处理的子流 URL: ${streamsURL}`);
+  }
+
   // ==========================================
   // 核心嗅探与播放分流逻辑
   // ==========================================
@@ -1361,7 +2321,7 @@
       return;
     }
 
-    let TIME_OUT = 10; // 超时(秒)未检测到视频流直接打开网页链接
+    let TIME_OUT = 8; // 超时(秒)未检测到视频流直接打开网页链接
     const loadingInstance = showLoading();
     // 轮询读取视频流
     const loopLoadInterceptedVideoUrls = () => {
@@ -1377,7 +2337,7 @@
         openMpvByVidelUrls();
         return;
       }
-      const loopTimer = setTimeout(() => {
+      const loopTimer = setTimeout(async () => {
         TIME_OUT--;
         if (interceptedVideoUrls.size > 0) {
           clearInterval(loopTimer);
@@ -1385,15 +2345,24 @@
           return;
         } else {
           if (TIME_OUT <= 0) {
-            console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
-            var userResponse = confirm(t(`supportedTips`));
-            if (userResponse) {
-              media.video = href;
-              media.isYtdlp = true;
-              openMpv(media);
-            }
             loadingInstance.destroy();
             clearInterval(loopTimer);
+            try {
+              // 终极解决方案，直接捕获m3u8文件用本地服务桥接
+              media.video = video?.src || hlsVideo?.src;
+              const m3u8URL = await getBlobM3u8LocalUrl(media.video);
+              media.video = m3u8URL;
+              openMpv(media);
+              return;
+            } catch (error) {
+              console.log("未检测到直链，发送当前网页 URL 供 yt-dlp 强行解析");
+              var userResponse = confirm(t(`supportedTips`));
+              if (userResponse) {
+                media.video = href;
+                media.isYtdlp = true;
+                openMpv(media);
+              }
+            }
           } else {
             loopLoadInterceptedVideoUrls();
           }
@@ -1497,4 +2466,143 @@
   //     initUI();
   //   }
   // });
+})();
+
+// 捕获blob链接形式的m3u8文件
+(function injectM3U8Hook() {
+  const script = document.createElement("script");
+  script.textContent = `
+  (() => {
+      if (window.__M3U8_BLOB_HOOK_INSTALLED__) {
+          return;
+      }
+      window.__M3U8_BLOB_HOOK_INSTALLED__ = true;
+      /*
+       * 创建一个隐藏的 DOM 通道
+       * page world -> DOM -> userscript
+       */
+      let container =
+          document.getElementById(
+              "__M3U8_CAPTURE_CONTAINER__"
+          );
+      if (!container) {
+          container =
+              document.createElement("div");
+          container.id =
+              "__M3U8_CAPTURE_CONTAINER__";
+          container.style.display = "none";
+          (
+              document.documentElement ||
+              document.head ||
+              document.body
+          ).appendChild(container);
+      }
+      /*
+       * 保存 M3U8
+       */
+      function saveM3U8(blobUrl, text) {
+          try {
+              if (
+                  typeof blobUrl !== "string" ||
+                  typeof text !== "string"
+              ) {
+                  return;
+              }
+              text = text.trim();
+              if (
+                  !text.startsWith("#EXTM3U")
+              ) {
+                  return;
+              }
+              /*
+               * 每一个 Blob 一个 textarea
+               * 不直接用 data-* 保存正文，
+               * 避免 HTML 属性长度和转义问题。
+               */
+              const id =
+                  "__M3U8_" +
+                  Math.random()
+                      .toString(36)
+                      .slice(2);
+              const el =
+                  document.createElement(
+                      "textarea"
+                  );
+              el.id = id;
+              el.value = text;
+              el.dataset.blobUrl =
+                  blobUrl;
+              el.style.display = "none";
+              container.appendChild(el);
+              /*
+               * 同时记录最新 Blob
+               */
+              container.dataset.latestId =
+                  id;
+              /*
+               * 通知 Userscript
+               * CustomEvent 本身不携带正文，
+               * 只通知“有新的 M3U8”。
+               */
+              container.dispatchEvent(
+                  new CustomEvent(
+                      "m3u8-captured",
+                      {
+                          detail: {
+                              id: id,
+                              blobUrl: blobUrl
+                          }
+                      }
+                  )
+              );
+          } catch (e) {
+              console.error(
+                  "[M3U8 DOM Bridge] save failed:",
+                  e
+              );
+          }
+      }
+      /*
+       * Hook createObjectURL
+       */
+      const originalCreateObjectURL =
+          URL.createObjectURL;
+      URL.createObjectURL =
+          function(object) {
+              const url =
+                  originalCreateObjectURL.call(
+                      URL,
+                      object
+                  );
+              /*
+               * Blob
+               */
+              if (
+                  object instanceof Blob
+              ) {
+                  object.text()
+                      .then(text => {
+                          saveM3U8(
+                              url,
+                              text
+                          );
+                      })
+                      .catch(err => {
+                          console.debug(
+                              "[M3U8 DOM Bridge] Blob.text failed:",
+                              err
+                          );
+                      });
+              }
+              return url;
+          };
+      console.log(
+          "[M3U8 DOM Bridge] installed"
+      );
+  })();
+  `;
+  (document.documentElement || document.head || document.body).appendChild(
+    script
+  );
+  script.remove();
 })();
