@@ -21,11 +21,13 @@
 
 ### 3. 安装油猴脚本
 
-- [play-with-mpv](https://greasyfork.org/zh-CN/scripts/587265)
+- 正式版为较稳定的版本，测试版会优先上新功能，可能会有 bug
+- [play-with-mpv 正式版](https://greasyfork.org/zh-CN/scripts/587265)
+- [play-with-mpv 测试版](https://github.com/akFace/play-with-mpv/raw/refs/heads/test/play-with-mpv.user.js)
 
 ### 4. 安装 Scheme Handler
 
-- 下载：[Scheme Handler cross](https://github.com/akFace/scheme-handler-cross) 跨平台唤起播放器协议
+- 下载：[Scheme Handler cross](https://github.com/akFace/scheme-handler-cross) 跨平台唤起播放器协议工具
 
 - 确保已经安装：[👉 yt-dlp ](https://github.com/yt-dlp/yt-dlp/releases)，windows 用户进入下载`yt-dlp.exe`，放到`mpv.exe`同目录下，即：播放器安装目录，macOS、Linux 用户可自行搜索安装教程
 
