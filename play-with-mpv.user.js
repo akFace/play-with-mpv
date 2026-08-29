@@ -835,7 +835,6 @@
 
     function addCandidate(url, contentType = "", source = "") {
       const candidate = getCandidate(url, contentType);
-
       if (!candidate) {
         return;
       }
@@ -849,8 +848,8 @@
         candidates.set(candidate.url, candidate);
       }
 
-      // 重新计算当前最高优先级
-      if (!bestCandidate || candidate.score > bestCandidate.score) {
+      // 重新计算当前最高优先级，分数相等时，取值最新的，分数大于的时候用旧的备选
+      if (!bestCandidate || candidate.score >= bestCandidate.score) {
         bestCandidate = candidate;
 
         console.log("[Video Hook] ⭐ 当前最佳视频 URL:", bestCandidate);
