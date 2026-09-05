@@ -24,6 +24,7 @@
 - 正式版为较稳定的版本，测试版会优先上新功能，可能会有 bug
 - [play-with-mpv 正式版](https://greasyfork.org/zh-CN/scripts/587265)
 - [play-with-mpv 测试版](https://github.com/akFace/play-with-mpv/raw/refs/heads/test/play-with-mpv.user.js)
+- 遇到“此脚本还未被执行”，导致按钮不显示无法使用的情况，[查看解决方法](https://github.com/akFace/play-with-mpv/issues/8)
 
 ### 4. 安装 Scheme Handler
 
@@ -37,6 +38,7 @@
 
 ### 相关问题
 
+- q: 遇到“此脚本还未被执行”，导致按钮不显示无法使用的情况，a：[查看解决方法](https://github.com/akFace/play-with-mpv/issues/8)
 - q: B 站如何加载最高画质？ a：由于`--cookies-from-browser`失效了（ [详情:issues](https://github.com/yt-dlp/yt-dlp/issues/7271)），解决办法：[方法 ① 推荐](https://github.com/akFace/play-with-mpv/issues/1)，[方法 ②](https://github.com/yt-dlp/yt-dlp/issues/7271#issuecomment-1584404779)
 - q: 有些网站没办法播放？ a：多试几次，如果还是不行那也是无能为力，说明不支持！
 - q：没办法唤起 mpv 播放器？a：请按照教程一步一步来！
