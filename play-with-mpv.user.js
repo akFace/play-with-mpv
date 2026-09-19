@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.22
+// @version      1.1.23
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -17,6 +17,8 @@
 // @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
 // @homepage     https://github.com/akFace/play-with-mpv
+// @website      https://github.com/akFace/play-with-mpv
+// @source       https://github.com/akFace/play-with-mpv
 // @downloadURL  https://update.greasyfork.org/scripts/587265/%E4%B8%80%E9%94%AE%E5%94%A4%E8%B5%B7%20MPV%20%E6%92%AD%E6%94%BE%E5%99%A8%EF%BC%88%E5%85%A8%E5%B1%80%E9%85%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%89%88%EF%BC%89.user.js
 // @updateURL    https://update.greasyfork.org/scripts/587265/%E4%B8%80%E9%94%AE%E5%94%A4%E8%B5%B7%20MPV%20%E6%92%AD%E6%94%BE%E5%99%A8%EF%BC%88%E5%85%A8%E5%B1%80%E9%85%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%89%88%EF%BC%89.meta.js
 // ==/UserScript==
@@ -59,8 +61,11 @@
       codecLabel: "首选视频编码格式",
       codecNoLimit: "不限编码 (默认)",
       scriptParsLabel: "内置解析站点（可选）",
+      scriptArgsLabel: "自定义参数（可选）",
       scriptParsPlaceholder:
-        "请输入站点(例: youtube.com或者https://www.youtube.com)，每行一个\n一般情况下不需要设置此处站点，除非按钮无法显示\n设置此处站点会强制显示`按钮`并且跳过读取yt_dlp直接插件内置解析...",
+        "请输入站点(例: youtube.com或者https://www.youtube.com)，每行一个\n一般情况下不需要设置此处站点，除非按钮无法显示，设置此处站点会强制显示`按钮`并且跳过读取yt_dlp直接插件内置解析...",
+      scriptArgsPlaceholder:
+        "请输入自定义参数（例：--force-media-title=play-with-mpv），每行一个\n一般情况下不需要设置此处参数，除非有特殊需求",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -70,8 +75,7 @@
       qualityLabel: "Max Resolution Limit",
       noLimit: "No Limit (Best Quality)",
       syncTimeLabel: "Sync Video Progress (Time)",
-      simpleLabel:
-        "Simplified parameter passing (try checked if it cannot play)",
+      simpleLabel: "Simplified param(try checked if it cannot play)",
       sizeLabel: "Button Size Adjustment",
       opacityLabel: "Edge Hide Opacity", // 新增
       subToggle: "Auto Download & Load Subs",
@@ -84,8 +88,11 @@
       codecLabel: "Preferred Video Codec Format",
       codecNoLimit: "No Limit (Default)",
       scriptParsLabel: "Script Parsing Site (Optional)",
+      scriptArgsLabel: "Custom Parameters (Optional)",
       scriptParsPlaceholder:
         "Enter parsing sites (e.g. youtube.com or https://www.youtube.com), one per line (separated by Enter)...\nGenerally, there is no need to set it.",
+      scriptArgsPlaceholder:
+        "Enter custom parameters (e.g. --force-media-title=play-with-mpv), one per line\nGenerally, there is no need to set it unless you have special requirements",
     },
   };
 
@@ -112,6 +119,8 @@
     // 在 DEFAULT_SETTINGS 中增加
     codec: "", // 默认不限制编码
     useScriptPars: "", // 默认插件解析方式
+    userScriptArgs: "", // 默认自定义参数为空
+    argsEnabled: false,
   };
 
   function t(key) {
@@ -313,6 +322,9 @@
           : "",
         `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
       ];
+    }
+    if (settings.argsEnabled && settings.userScriptArgs?.length) {
+      args.push(...settings.userScriptArgs);
     }
 
     args = args.filter((item) => item !== "");
@@ -1431,7 +1443,7 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%) scale(0.95);
-      width: 480px;
+      width: 740px;
       max-height: 85vh;
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(20px);
@@ -1457,11 +1469,12 @@
         padding: 14px 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.06);
       ">
         <div class="mpv-modal-title" style="font-size: 15px; font-weight: bold; color: #333; display: flex; align-items: center;">
-          <span id="mpv-title" style="font-size: 16px; font-weight: bold; color: #1a1a1a; display: inline-block;"></span>
-          <a style="font-size: 14px; color: #ff0055; text-decoration: none;display: flex; align-items: center; margin-left: 5px;" target="_blank" title="GitHub" href="https://github.com/akFace/play-with-mpv">
+          <span id="mpv-title" style="font-size: 16px; font-weight: bold; color: #1a1a1a; display: inline-block;"></span>&nbsp;&nbsp;|&nbsp;&nbsp;
+          <a style="font-size: 14px;color: #666; font-weight: normal; text-decoration: none;display: flex; align-items: center; margin-left: 5px;" target="_blank" title="GitHub" href="https://github.com/akFace/play-with-mpv">
             <svg t="1731923678389" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="5894" width="20" height="20">
               <path d="M20.48 503.72608c0 214.4256 137.4208 396.73856 328.94976 463.6672 25.8048 6.5536 21.87264-11.8784 21.87264-24.33024v-85.07392c-148.93056 17.44896-154.86976-81.1008-164.94592-97.52576-20.23424-34.52928-67.91168-43.33568-53.69856-59.76064 33.91488-17.44896 68.48512 4.42368 108.46208 63.61088 28.95872 42.88512 85.44256 35.6352 114.15552 28.4672a138.8544 138.8544 0 0 1 38.0928-66.7648c-154.25536-27.60704-218.60352-121.77408-218.60352-233.79968 0-54.31296 17.94048-104.2432 53.0432-144.54784-22.36416-66.43712 2.08896-123.24864 5.3248-131.6864 63.81568-5.7344 130.00704 45.6704 135.168 49.68448 36.2496-9.78944 77.57824-14.9504 123.82208-14.9504 46.4896 0 88.064 5.3248 124.5184 15.23712 12.288-9.4208 73.80992-53.53472 133.12-48.128 3.15392 8.43776 27.0336 63.93856 6.02112 129.4336 35.59424 40.38656 53.69856 90.76736 53.69856 145.24416 0 112.18944-64.7168 206.4384-219.42272 233.71776a140.0832 140.0832 0 0 1 41.7792 99.9424v123.4944c0.86016 9.87136 0 19.6608 16.50688 19.6608 194.31424-65.49504 334.2336-249.15968 334.2336-465.5104C1002.57792 232.48896 782.66368 12.77952 511.5904 12.77952 240.18944 12.65664 20.48 232.40704 20.48 503.72608z" fill="#000000" opacity=".65" p-id="5895"></path>
             </svg>
+            <span style="margin-left: 5px;padding-top: 3px;">Powered by AkFace</span>
           </a>
         </div>
         <button id="mpv-close-modal" style="
@@ -1498,16 +1511,20 @@
           </div>
         </div>
 
+       
         <!-- 播放时间同步 -->
-        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
-          <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-          <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+         <div>
+          <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
+            <label id="mpv-label-synctime" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+            <input type="checkbox" id="mpv-time-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+          </div>
         </div>
-
          <!-- 简化传参 -->
-        <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
-          <label id="mpv-label-simple" style="font-size: 13px; font-weight: 600; color: #333;"></label>
-          <input type="checkbox" id="mpv-simple-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+         <div>
+          <div style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 10px;">
+            <label id="mpv-label-simple" style="font-size: 13px; font-weight: 600; color: #333;"></label>
+            <input type="checkbox" id="mpv-simple-toggle" style="cursor: pointer; width: 36px; height: 18px; accent-color: #ff0055;">
+          </div>
         </div>
         
         <!-- 画质设置 -->
@@ -1566,7 +1583,19 @@
         <div style="grid-column: span 2;">
           <label id="mpv-label-script-pars" style="font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 4px;"></label>
           <textarea id="mpv-script-pars-input" rows="2" placeholder="" style="
-            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; min-height: 80px;
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; min-height: 60px;
+            font-size: 12px; background: rgba(255,255,255,0.7); outline: none; box-sizing: border-box; color: #333; resize: vertical;
+          "></textarea>
+        </div>
+
+         <!-- 自定义参数 -->
+        <div style="grid-column: span 2;">
+          <div style="display: flex; justify-content: flex-start; align-items: center; margin-bottom: 4px;">
+            <label id="mpv-label-script-args" style="font-size: 13px; font-weight: 600; color: #333; display: block;"></label>
+            <input type="checkbox" id="mpv-args-toggle" style="cursor: pointer; width: 32px; height: 16px; accent-color: #ff0055;">
+          </div>
+          <textarea id="mpv-script-args-input" rows="2" placeholder="" style="
+            width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; min-height: 60px;
             font-size: 12px; background: rgba(255,255,255,0.7); outline: none; box-sizing: border-box; color: #333; resize: vertical;
           "></textarea>
         </div>
@@ -1596,6 +1625,21 @@
             -webkit-appearance: auto !important;
             content: normal !important;
           }
+          #mpv-settings-modal textarea::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+            scrollbar-width: none;
+          }
+          #mpv-settings-modal textarea {
+            scrollbar-width: none;
+          }
+          #mpv-settings-modal a {
+            color: #666;
+          }
+          #mpv-settings-modal a:hover {
+            color: #ff0055;
+          }
       `);
     document.head.appendChild(style);
 
@@ -1620,6 +1664,8 @@
     const closeBtn = modal.querySelector("#mpv-close-modal");
     const codecSelect = modal.querySelector("#mpv-codec-select");
     const scriptParsInput = modal.querySelector("#mpv-script-pars-input");
+    const scriptArgsInput = modal.querySelector("#mpv-script-args-input");
+    const argsToggle = modal.querySelector("#mpv-args-toggle");
 
     function updateLanguageUI(langKey) {
       const text = I18N[langKey] || I18N["en"];
@@ -1642,6 +1688,9 @@
       modal.querySelector("#mpv-label-script-pars").innerText =
         text.scriptParsLabel;
       scriptParsInput.placeholder = text.scriptParsPlaceholder;
+      modal.querySelector("#mpv-label-script-args").innerText =
+        text.scriptArgsLabel;
+      scriptArgsInput.placeholder = text.scriptArgsPlaceholder;
     }
 
     function loadUiFromSettings() {
@@ -1673,7 +1722,12 @@
       scriptParsInput.value = Array.isArray(s.useScriptPars)
         ? s.useScriptPars.join("\n")
         : s.useScriptPars || "";
-
+      scriptArgsInput.value = Array.isArray(s.userScriptArgs)
+        ? s.userScriptArgs.join("\n")
+        : s.userScriptArgs || "";
+      argsToggle.checked = s.argsEnabled;
+      scriptArgsInput.disabled = !s.argsEnabled;
+      scriptArgsInput.style.opacity = s.argsEnabled ? "1" : "0.5";
       updateButtonSizes(s.btnSize);
     }
 
@@ -1701,6 +1755,12 @@
         .map((item) => item.trim())
         .filter(Boolean);
 
+      s.userScriptArgs = scriptArgsInput.value
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      s.argsEnabled = argsToggle.checked;
+
       saveSettings(s);
 
       // 如果当前是隐藏状态，立刻刷新透明度
@@ -1719,6 +1779,8 @@
       proxyAddrInput.style.opacity = s.proxyEnabled ? "1" : "0.5";
       translateToggle.disabled = !s.subEnabled;
       translateWrap.style.opacity = s.subEnabled ? "1" : "0.4";
+      scriptArgsInput.style.opacity = s.argsEnabled ? "1" : "0.5";
+      scriptArgsInput.disabled = !s.argsEnabled;
     }
 
     loadUiFromSettings();
@@ -1733,6 +1795,8 @@
       translateToggle,
       langSelect,
       scriptParsInput,
+      scriptArgsInput,
+      argsToggle,
     ].forEach((el) => {
       el.addEventListener("change", updateAndSave);
       if (el.tagName === "TEXTAREA") {
