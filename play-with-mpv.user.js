@@ -197,7 +197,6 @@
   // 唤起 MPV 核心函数
   async function openMpv(media) {
     const settings = getSettings();
-    console.log("🚀 ~ openMpv ~ settings:", settings);
     const proxyArg =
       settings.proxyEnabled && settings.networkProxy
         ? `--ytdl-raw-options="proxy=[${settings.networkProxy}]"`
