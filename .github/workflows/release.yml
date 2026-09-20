@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "static/**"
+      - "play-with-mpv.user.js"
 
 permissions:
   contents: write
