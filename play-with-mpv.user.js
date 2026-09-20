@@ -1557,6 +1557,7 @@
             <option value="avc1">AVC (H.264)</option>
             <option value="av01">AV1</option>
             <option value="vp9">VP9</option>
+            <option value="vvi1">VVC</option>
           </select>
         </div>
           

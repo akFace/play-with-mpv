@@ -3,7 +3,7 @@ name: Auto Release
 on:
   push:
     branches:
-      - test
+      - main
 
 permissions:
   contents: write
@@ -38,13 +38,10 @@ jobs:
           latest_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
 
           if [ -z "$latest_tag" ]; then
-            # 如果没有标签，从 v1.0.0 开始
-            new_version="v1.0.0"
+            new_version="v0.1.0"
           else
-            # 去掉 'v' 前缀，拆解版本号
             version=${latest_tag#v}
             IFS='.' read -r major minor patch <<< "$version"
-            # 递增 patch 号
             patch=$((patch + 1))
             new_version="v${major}.${minor}.${patch}"
           fi
@@ -69,22 +66,25 @@ jobs:
           previous_tag=$(git tag --list 'v*' --sort=-v:refname | grep -v "${{ steps.version.outputs.NEW_VERSION }}" | head -n 1)
 
           if [ -z "$previous_tag" ]; then
-            # 如果是第一个标签，则获取所有提交
             log_range="HEAD"
           else
             log_range="${previous_tag}..HEAD"
           fi
 
-          # 生成提交日志，排除包含 README.md 的提交
-          # 使用 --pretty=format 自定义格式，并过滤掉涉及 README.md 的提交
+          echo "### 使用教程" > release_notes.txt
+          echo "  - [🎯 使用教程](https://github.com/akFace/play-with-mpv#-%E5%AE%89%E8%A3%85)" >> release_notes.txt
+          echo "" >> release_notes.txt
+          echo "### Update log:" >> release_notes.txt
+          echo "" >> release_notes.txt
+
+          # 追加提交日志（排除 README.md）
           git log $log_range --pretty=format:"- %s (%h)" -- . \
             ':(exclude)README.md' \
-            ':(exclude)*/README.md' \
-            > release_notes.txt
+            ':(exclude)*/README.md' >> release_notes.txt
 
-          # 如果文件为空，添加默认提示
-          if [ ! -s release_notes.txt ]; then
-            echo "No significant changes in this release." > release_notes.txt
+          # 如果过滤后没有任何提交，追加一条默认提示（可选）
+          if [ $(git log $log_range --pretty=format:"%s" -- . ':(exclude)README.md' ':(exclude)*/README.md' | wc -l) -eq 0 ]; then
+            echo "No significant changes in this release." >> release_notes.txt
           fi
 
           echo "Release notes generated."
@@ -94,7 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.NEW_VERSION }}
-          name: Release ${{ steps.version.outputs.NEW_VERSION }}
+          name: ${{ steps.version.outputs.NEW_VERSION }}
           body_path: release_notes.txt
           draft: false
           prerelease: false
