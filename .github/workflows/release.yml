@@ -1,0 +1,100 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - test
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp
+
+      - name: Run export script
+        run: |
+          python get_yt_dlp_supported_sites.py
+
+      - name: Calculate next version
+        id: version
+        run: |
+          # 获取最新的 SemVer 标签（格式 vX.Y.Z）
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+
+          if [ -z "$latest_tag" ]; then
+            # 如果没有标签，从 v1.0.0 开始
+            new_version="v1.0.0"
+          else
+            # 去掉 'v' 前缀，拆解版本号
+            version=${latest_tag#v}
+            IFS='.' read -r major minor patch <<< "$version"
+            # 递增 patch 号
+            patch=$((patch + 1))
+            new_version="v${major}.${minor}.${patch}"
+          fi
+
+          echo "NEW_VERSION=$new_version" >> $GITHUB_OUTPUT
+          echo "Next version will be: $new_version"
+
+      - name: Create and push tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+      - name: Generate release notes (excluding README.md commits)
+        id: release_notes
+        run: |
+          # 获取上一个标签，用于对比提交范围
+          previous_tag=$(git tag --list 'v*' --sort=-v:refname | grep -v "${{ steps.version.outputs.NEW_VERSION }}" | head -n 1)
+
+          if [ -z "$previous_tag" ]; then
+            # 如果是第一个标签，则获取所有提交
+            log_range="HEAD"
+          else
+            log_range="${previous_tag}..HEAD"
+          fi
+
+          # 生成提交日志，排除包含 README.md 的提交
+          # 使用 --pretty=format 自定义格式，并过滤掉涉及 README.md 的提交
+          git log $log_range --pretty=format:"- %s (%h)" -- . \
+            ':(exclude)README.md' \
+            ':(exclude)*/README.md' \
+            > release_notes.txt
+
+          # 如果文件为空，添加默认提示
+          if [ ! -s release_notes.txt ]; then
+            echo "No significant changes in this release." > release_notes.txt
+          fi
+
+          echo "Release notes generated."
+          cat release_notes.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.NEW_VERSION }}
+          name: Release ${{ steps.version.outputs.NEW_VERSION }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
