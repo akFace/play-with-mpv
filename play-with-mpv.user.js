@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.23
+// @version      1.1.24
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -65,7 +65,7 @@
       scriptParsPlaceholder:
         "请输入站点(例: youtube.com或者https://www.youtube.com)，每行一个\n一般情况下不需要设置此处站点，除非按钮无法显示，设置此处站点会强制显示`按钮`并且跳过读取yt_dlp直接插件内置解析...",
       scriptArgsPlaceholder:
-        "请输入自定义参数（例：--force-media-title=play-with-mpv），每行一个\n一般情况下不需要设置此处参数，除非有特殊需求",
+        "请输入自定义参数（例：--force-media-title=play-with-mpv），每行一个\n一般情况下不需要设置此处参数，除非有特殊需求，支持 # 开头的注释",
     },
     en: {
       playBtnText: "🎬 MPV",
@@ -92,7 +92,7 @@
       scriptParsPlaceholder:
         "Enter parsing sites (e.g. youtube.com or https://www.youtube.com), one per line (separated by Enter)...\nGenerally, there is no need to set it.",
       scriptArgsPlaceholder:
-        "Enter custom parameters (e.g. --force-media-title=play-with-mpv), one per line\nGenerally, there is no need to set it unless you have special requirements",
+        "Enter custom parameters (e.g. --force-media-title=play-with-mpv), one per line\nGenerally, there is no need to set it unless you have special requirements, supports comments starting with #",
     },
   };
 
@@ -324,7 +324,10 @@
       ];
     }
     if (settings.argsEnabled && settings.userScriptArgs?.length) {
-      args.push(...settings.userScriptArgs);
+      const argsFromSettings = settings.userScriptArgs.filter(
+        (item) => !item.trim().startsWith("#")
+      );
+      args.push(...argsFromSettings);
     }
 
     args = args.filter((item) => item !== "");
@@ -1554,6 +1557,7 @@
             <option value="avc1">AVC (H.264)</option>
             <option value="av01">AV1</option>
             <option value="vp9">VP9</option>
+            <option value="vvi1">VVC</option>
           </select>
         </div>
           

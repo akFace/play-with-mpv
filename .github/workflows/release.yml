@@ -1,0 +1,100 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp
+
+      - name: Run export script
+        run: |
+          python get_yt_dlp_supported_sites.py
+
+      - name: Calculate next version
+        id: version
+        run: |
+          # 获取最新的 SemVer 标签（格式 vX.Y.Z）
+          latest_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+
+          if [ -z "$latest_tag" ]; then
+            new_version="v0.1.0"
+          else
+            version=${latest_tag#v}
+            IFS='.' read -r major minor patch <<< "$version"
+            patch=$((patch + 1))
+            new_version="v${major}.${minor}.${patch}"
+          fi
+
+          echo "NEW_VERSION=$new_version" >> $GITHUB_OUTPUT
+          echo "Next version will be: $new_version"
+
+      - name: Create and push tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.version.outputs.NEW_VERSION }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+      - name: Generate release notes (excluding README.md commits)
+        id: release_notes
+        run: |
+          # 获取上一个标签，用于对比提交范围
+          previous_tag=$(git tag --list 'v*' --sort=-v:refname | grep -v "${{ steps.version.outputs.NEW_VERSION }}" | head -n 1)
+
+          if [ -z "$previous_tag" ]; then
+            log_range="HEAD"
+          else
+            log_range="${previous_tag}..HEAD"
+          fi
+
+          echo "### 使用教程" > release_notes.txt
+          echo "  - [🎯 使用教程](https://github.com/akFace/play-with-mpv#-%E5%AE%89%E8%A3%85)" >> release_notes.txt
+          echo "" >> release_notes.txt
+          echo "### Update log:" >> release_notes.txt
+          echo "" >> release_notes.txt
+
+          # 追加提交日志（排除 README.md）
+          git log $log_range --pretty=format:"- %s (%h)" -- . \
+            ':(exclude)README.md' \
+            ':(exclude)*/README.md' >> release_notes.txt
+
+          # 如果过滤后没有任何提交，追加一条默认提示（可选）
+          if [ $(git log $log_range --pretty=format:"%s" -- . ':(exclude)README.md' ':(exclude)*/README.md' | wc -l) -eq 0 ]; then
+            echo "No significant changes in this release." >> release_notes.txt
+          fi
+
+          echo "Release notes generated."
+          cat release_notes.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.NEW_VERSION }}
+          name: ${{ steps.version.outputs.NEW_VERSION }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
