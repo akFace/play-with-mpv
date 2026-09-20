@@ -59,6 +59,17 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ========== 提交所有变动并 push ==========
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update supported sites for $NEW_VERSION"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
+          # ========== 创建并推送标签 ==========
           git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
           git push origin "$NEW_VERSION"
 
