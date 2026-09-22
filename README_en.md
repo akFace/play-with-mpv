@@ -56,7 +56,7 @@ Then open a video page and try it out.
 
 A: [See the solution](https://github.com/akFace/play-with-mpv/issues/8).
 
-### Q: How can I load the highest quality on Bilibili?
+### Q: How to set cookies?
 
 A: `--cookies-from-browser` is currently unavailable in the relevant workflow ([details](https://github.com/yt-dlp/yt-dlp/issues/7271)).
 
