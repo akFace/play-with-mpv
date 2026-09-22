@@ -1,5 +1,7 @@
 # play-with-mpv 使用 mpv 播放网页中的视频
 
+### 中文 | [English](https://github.com/akFace/play-with-mpv/blob/main/README_en.md)
+
 - 使用外部播放器播放网页中的视频，支持 Windows、macOS、Linux
 - 本工具通过嗅探资源方式获取视频原始链接 + `yt-dlp` 配合，能够覆盖大部分视频网站
 - 注：由于是通过嗅探方式获取原始链接，**请先等待网页视频加载播放后再唤起 mpv 播放器**
