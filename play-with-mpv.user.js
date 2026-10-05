@@ -322,6 +322,7 @@
           ? `--sub-file="${media.subtitle}"`
           : "",
         `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
+        `--tls-verify=no`,
       ];
     }
     if (settings.argsEnabled && settings.userScriptArgs?.length) {
