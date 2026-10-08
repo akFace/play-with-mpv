@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.24
+// @version      1.1.25
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -228,8 +228,9 @@
       return `--ytdl-format="bestvideo+bestaudio/best"`;
     })();
 
+    // 时间大于或等于30秒的时候才跳过
     const startTimeArg =
-      settings.syncTime && media.time ? `--start="${media.time}"` : "";
+      settings.syncTime && media.time >= 30 ? `--start="${media.time}"` : "";
 
     let cookiesForURL = null;
     try {
@@ -321,6 +322,7 @@
           ? `--sub-file="${media.subtitle}"`
           : "",
         `--script-opts-append=ytdl_hook-ytdl_path=yt-dlp`,
+        `--tls-verify=no`,
       ];
     }
     if (settings.argsEnabled && settings.userScriptArgs?.length) {
