@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.27
+// @version      1.1.28
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -2454,21 +2454,61 @@
     );
   }
 
+  function isInViewport(video) {
+    const rect = video.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    return rect.bottom > 0 && rect.right > 0 && rect.top < vh && rect.left < vw;
+  }
+
+  function isPlaying(video) {
+    return !video.paused && !video.ended;
+  }
+
+  // 规则：宽高（面积）更大并且正在播放 > 在可视区域内 > 宽高（面积）更大 > 正在播放
   function getBestVideo() {
-    const videos =
-      Array.from(document.querySelectorAll("video")) ||
-      Array.from(document.querySelectorAll("hls-video"));
+    const videos = Array.from(
+      new Set([
+        ...document.querySelectorAll("video"),
+        ...document.querySelectorAll("hls-video"),
+      ])
+    );
     if (videos.length === 0) return null;
 
-    const playingVideos = videos.filter((v) => !v.paused && !v.ended);
-    if (playingVideos.length > 0) {
-      return playingVideos.reduce((best, current) =>
-        getVideoArea(current) > getVideoArea(best) ? current : best
-      );
-    }
-    return videos.reduce((best, current) =>
-      getVideoArea(current) > getVideoArea(best) ? current : best
-    );
+    // 绝对下限：剔除图标级超小元素，不负责区分主视频/预览
+    const ABS_MIN_AREA = 100 * 100;
+
+    const areas = videos.map(getVideoArea).filter((a) => a >= ABS_MIN_AREA);
+    const maxArea = areas.length > 0 ? Math.max(...areas) : 0;
+    const REL_MIN_AREA = maxArea * 0.2;
+    const strongThreshold = maxArea * 0.5;
+
+    const candidates = videos.filter((v) => {
+      const a = getVideoArea(v);
+      return a >= ABS_MIN_AREA && a >= REL_MIN_AREA;
+    });
+    const pool = candidates.length > 0 ? candidates : videos;
+
+    const compare = (a, b) => {
+      const areaA = getVideoArea(a);
+      const areaB = getVideoArea(b);
+      const playA = isPlaying(a);
+      const playB = isPlaying(b);
+      const viewA = isInViewport(a);
+      const viewB = isInViewport(b);
+
+      const strongA = playA && areaA >= strongThreshold;
+      const strongB = playB && areaB >= strongThreshold;
+      if (strongA !== strongB) return strongA ? -1 : 1;
+      if (strongA && strongB) return areaB - areaA;
+
+      if (viewA !== viewB) return viewA ? -1 : 1;
+      if (areaA !== areaB) return areaB - areaA;
+      if (playA !== playB) return playA ? -1 : 1;
+      return 0;
+    };
+
+    return pool.reduce((best, cur) => (compare(cur, best) < 0 ? cur : best));
   }
 
   // 结合监听 video 和 监听嗅探成功 两个条件，动态创建播放按钮
