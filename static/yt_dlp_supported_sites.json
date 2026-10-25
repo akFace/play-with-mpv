@@ -1,5 +1,5 @@
 {
-    "total_count": 1751,
+    "total_count": 1754,
     "extractors": [
         "10play",
         "10play:season",
@@ -1308,8 +1308,10 @@
         "jiosaavn:song",
         "khanacademy",
         "khanacademy:unit",
+        "kick:clip",
         "kick:clips",
         "kick:live",
+        "kick:videos",
         "kick:vod",
         "kuwo:album",
         "kuwo:category",
@@ -1409,6 +1411,7 @@
         "nhl.com",
         "nick.com",
         "niconico",
+        "niconico:channel",
         "niconico:history",
         "niconico:live",
         "niconico:playlist",
