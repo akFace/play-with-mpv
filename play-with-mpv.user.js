@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         一键唤起 MPV 播放器
 // @namespace    https://greasyfork.org/scripts/587265
-// @version      1.1.28
+// @version      1.1.29
 // @description  使用 mpv 外部播放器播放网页中的视频，play-with-mpv | play in mpv | Play online webpage videos on MPV，在网页右下角添加悬浮按钮，支持获取当前网页视频链接并唤起 MPV。配置支持跨网站全局同步，字幕自动翻译随面板语言自适应。
 // @author       akFace
 // @license      MIT
@@ -16,6 +16,7 @@
 // @resource yt_dlp_supported_sites https://cdn.gh-proxy.org/https://github.com/akFace/play-with-mpv/raw/main/static/yt_dlp_supported_sites.json
 // @grant GM_getResourceText
 // @require      https://unpkg.com/pako@3.0.1/dist/browser/pako.umd.min.js
+// @require https://update.greasyfork.org/scripts/575775/1810724/Trusted%20Types%20%E5%85%BC%E5%AE%B9%E8%A1%A5%E4%B8%81.js
 // @homepage     https://github.com/akFace/play-with-mpv
 // @website      https://github.com/akFace/play-with-mpv
 // @source       https://github.com/akFace/play-with-mpv
