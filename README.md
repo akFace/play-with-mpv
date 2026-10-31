@@ -1,8 +1,14 @@
-# play-with-mpv 使用 mpv 播放网页中的视频
+<div align="center">
+  <h1>play-with-mpv 使用 mpv 播放网页中的视频</h1>
+  <img alt="mpv 0.40+" src="https://img.shields.io/badge/mpv-0.40%2B-2b2d33?style=&labelColor=8934D9">
+  <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-2b2d33?style=&labelColor=008040">
+  <img alt="License LGPL-2.1" src="https://img.shields.io/badge/license-LGPL--2.1-2b2d33?style=&labelColor=C7690C">
+  <a href="https://greasyfork.org/scripts/587265"><img alt="Releases" src="https://img.shields.io/badge/tampermonkey-repo-blue?logo=Tampermonkey"></a>
+</div>
 
 ### 中文 | [English](https://github.com/akFace/play-with-mpv/blob/main/README_en.md)
 
-- 使用外部播放器播放网页中的视频，支持 Windows、macOS、Linux
+- 使用外部播放器播放网页中的视频，支持 **Windows、macOS、Linux**
 - 本工具通过嗅探资源方式获取视频原始链接 + `yt-dlp` 配合，能够覆盖大部分视频网站
 - 注：由于是通过嗅探方式获取原始链接，**请先等待网页视频加载播放后再唤起 mpv 播放器**
 - 支持大部分视频网站，部分加密视频 以及 [yt-dlp 支持的网站](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)
